@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CUPISSA - Panel de Administración</title>
+    
+    <link rel="shortcut icon" href="images/favicon.png" type="image/png">
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="images/favicon.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fdf4ff',
+                            100: '#fae8ff',
+                            200: '#f5d0fe',
+                            300: '#f0abfc',
+                            400: '#e879f9',
+                            500: '#db2777',
+                            600: '#be185d',
+                            700: '#9d174d',
+                            800: '#831843',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Supabase JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Cropper.js (Librería de Recorte de Imagen) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <!-- CryptoJS Librería para la comparación estricta/Hash de imágenes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <style>
+        .fuchsia-btn { background-color: #db2777; color: white; }
+        .fuchsia-btn:hover { background-color: #be185d; }
+        .fuchsia-bg { background-color: #db2777; }
+        .fuchsia-text { color: #db2777; }
+        .fuchsia-border { border-color: #db2777; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f0abfc; border-radius: 9999px; }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
+
+    <!-- LOGIN ADMINISTRADOR -->
+    <div id="admin-login-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-pink-100">
+            <div class="fuchsia-bg p-8 text-center text-white">
+                <div class="w-16 h-16 mx-auto mb-3 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex items-center justify-center">
+                    <i class="fa-solid fa-shield-halved text-3xl text-white"></i>
+                </div>
+                <h2 class="text-2xl font-black">Admin CUPISSA</h2>
+                <p class="text-pink-100 text-xs mt-1">Ingresa con tus credenciales de administrador</p>
+            </div>
+            
+            <form onsubmit="handleAdminLogin(event)" class="p-6 sm:p-8 space-y-5">
+                <div id="admin-login-error" class="hidden bg-pink-50 border border-pink-200 fuchsia-text text-xs p-3 rounded-xl flex items-center space-x-2 font-medium">
+                    <i class="fa-solid fa-circle-exclamation text-base"></i>
+                    <span>Usuario o contraseña de administrador incorrectos.</span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Correo Electrónico</label>
+                    <input type="email" id="admin-user-email" required placeholder="contactocupissa@gmail.com" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm font-semibold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contraseña</label>
+                    <input type="password" id="admin-user-pass" required placeholder="••••••••" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm font-semibold">
+                </div>
+
+                <button type="submit" class="w-full py-3.5 fuchsia-btn font-bold rounded-xl shadow-lg transition-all text-sm flex items-center justify-center space-x-2">
+                    <span>Acceder al Panel</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- HEADER: LOGO Y SALIR -->
+    <header class="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center space-x-6">
+                    <img src="images/logo.png" alt="CUPISSA" class="h-12 w-auto object-contain">
+                    
+                    <nav class="hidden sm:flex space-x-2">
+                        <button onclick="switchTab('creditos')" id="tab-btn-creditos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all bg-pink-50 fuchsia-text border border-pink-200">
+                            <i class="fa-solid fa-credit-card mr-1.5"></i> Créditos y Clientes
+                        </button>
+                        <button onclick="switchTab('catalogo')" id="tab-btn-catalogo" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100">
+                            <i class="fa-solid fa-boxes-packing mr-1.5"></i> Catálogo de Productos
+                        </button>
+                    </nav>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button onclick="handleAdminLogout()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center space-x-2">
+                        <i class="fa-solid fa-right-from-bracket fuchsia-text"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- NAVEGACIÓN MÓVIL PESTAÑAS -->
+    <div class="sm:hidden bg-white border-b border-slate-100 p-2 flex justify-center space-x-2">
+        <button onclick="switchTab('creditos')" id="tab-btn-creditos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text">Créditos</button>
+        <button onclick="switchTab('catalogo')" id="tab-btn-catalogo-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Catálogo</button>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        
+        <!-- PESTAÑA 1: ADMIN CRÉDITOS Y CLIENTES -->
+        <div id="tab-section-creditos" class="space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                        <i class="fa-solid fa-user-gear fuchsia-text"></i>
+                        <span>Panel de Administración de Créditos</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Gestión de cupo disponible, creación de clientes, fechas y tablas de cuotas de pago.</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="openNewClientModal()" class="px-5 py-3 fuchsia-btn rounded-2xl text-xs font-black shadow-md flex items-center space-x-2">
+                        <i class="fa-solid fa-user-plus"></i>
+                        <span>Registrar Nuevo Cliente</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div class="relative w-full sm:w-80">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="admin-search-input" onkeyup="filterAdminTable()" placeholder="Buscar por nombre o teléfono..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 font-medium">
+                </div>
+                
+                <div class="text-xs text-slate-500 font-semibold">
+                    Clientes Registrados: <strong id="val-total-clients" class="fuchsia-text font-black">0</strong>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
+                            <tr>
+                                <th class="p-4">CLIENTE</th>
+                                <th class="p-4">TELÉFONO (LOGIN)</th>
+                                <th class="p-4">CUPO TOTAL</th>
+                                <th class="p-4">CUPO DISPONIBLE</th>
+                                <th class="p-4">DEUDA ACTUAL TOTAL</th>
+                                <th class="p-4">DEUDAS ACTIVAS</th>
+                                <th class="p-4 text-center">ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-tbody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span id="clients-pagination-info" class="text-slate-500 font-semibold">Mostrando 0 de 0</span>
+                    <div class="space-x-2">
+                        <button onclick="changeClientsPage(-1)" id="btn-prev-clients" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Anterior</button>
+                        <button onclick="changeClientsPage(1)" id="btn-next-clients" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Siguiente</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 2: ADMIN CATÁLOGO DE PRODUCTOS -->
+        <div id="tab-section-catalogo" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                        <i class="fa-solid fa-wand-magic-sparkles fuchsia-text"></i>
+                        <span>Gestión Inteligente de Productos</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Crea, edita y organiza los productos visibles en catalogo.html[cite: 1]</p>
+                </div>
+                <button onclick="openProductModal()" class="px-5 py-3 fuchsia-btn rounded-2xl text-xs font-black shadow-md flex items-center space-x-2 self-start sm:self-center">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>Crear Nuevo Producto</span>
+                </button>
+            </div>
+
+            <!-- BUSCADOR INTELIGENTE DE PRODUCTOS -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div class="relative w-full sm:w-80">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="admin-search-product-input" onkeyup="filterAdminProductsTable()" placeholder="Buscar producto por su nombre..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 font-medium">
+                </div>
+                
+                <div class="text-xs text-slate-500 font-semibold">
+                    Productos Registrados: <strong id="val-total-products" class="fuchsia-text font-black">0</strong>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-6 space-y-4">
+                <h3 class="font-black text-slate-900 text-sm uppercase">Productos Registrados en el Catálogo[cite: 1]</h3>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
+                            <tr>
+                                <th class="p-3">FOTO</th>
+                                <th class="p-3">PRODUCTO</th>
+                                <th class="p-3">MUNDO</th>
+                                <th class="p-3">CATEGORÍA / TEMPORADA</th>
+                                <th class="p-3">PRECIO DETAL</th>
+                                <th class="p-3">PRECIO MAYORISTA</th>
+                                <th class="p-3">% ANTICIPO</th>
+                                <th class="p-3 text-center">ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-tbody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <div class="pt-2 flex items-center justify-between text-xs">
+                    <span id="products-pagination-info" class="text-slate-500 font-semibold">Mostrando 0 de 0</span>
+                    <div class="space-x-2">
+                        <button onclick="changeProductsPage(-1)" id="btn-prev-products" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Anterior</button>
+                        <button onclick="changeProductsPage(1)" id="btn-next-products" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Siguiente</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL 1: REGISTRAR NUEVO CLIENTE -->
+    <div id="modal-new-client" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-user-plus fuchsia-text"></i>
+                    <span>Registrar Nuevo Cliente</span>
+                </h3>
+                <button onclick="closeNewClientModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleCreateNewClient(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">NOMBRE COMPLETO *</label>
+                    <input type="text" id="new-client-name" required placeholder="Ej: María Rodríguez" class="w-full border border-slate-200 rounded-xl px-3 py-2">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold fuchsia-text uppercase mb-1">TELÉFONO (LOGIN) *</label>
+                        <input type="tel" id="new-client-phone" required placeholder="3000000000" class="w-full border fuchsia-border rounded-xl px-3 py-2 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-500 uppercase mb-1">CÉDULA (CONTRASEÑA) *</label>
+                        <input type="text" id="new-client-cedula" required placeholder="Número de cédula" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">CUPO TOTAL ($) *</label>
+                        <input type="number" id="new-client-cupo" required value="500000" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">MONTO DEUDA INICIAL ($)</label>
+                        <input type="number" id="new-client-deuda" value="300000" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold fuchsia-text uppercase mb-1">PRÓXIMA FECHA DE PAGO *</label>
+                    <input type="date" id="new-client-fecha-inicio" required class="w-full border fuchsia-border rounded-xl px-3 py-2 font-bold">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">FRECUENCIA</label>
+                        <select id="new-client-frecuencia" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                            <option value="Quincenal" selected>Quincenal</option>
+                            <option value="Semanal">Semanal</option>
+                            <option value="Diario">Diario</option>
+                            <option value="Mensual">Mensual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">NÚMERO DE CUOTAS</label>
+                        <input type="number" id="new-client-cuotas" value="6" min="1" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeNewClientModal()" class="w-1/2 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold">Cancelar</button>
+                    <button type="submit" class="w-1/2 py-2.5 fuchsia-btn rounded-xl font-bold shadow-md">Crear Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: ADMINISTRAR CLIENTE Y CRÉDITOS -->
+    <div id="modal-edit-client" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-sliders fuchsia-text"></i>
+                    <span>Administrar Cliente, Fechas y Tabla de Cuotas</span>
+                </h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <input type="hidden" id="edit-client-id">
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl text-xs">
+                <div>
+                    <label class="block font-bold text-slate-400 uppercase mb-1">NOMBRE</label>
+                    <input type="text" id="edit-client-name" disabled class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-400 uppercase mb-1">TELÉFONO (LOGIN)</label>
+                    <input type="text" id="edit-client-phone" disabled class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold fuchsia-text">
+                </div>
+                <div>
+                    <label class="block font-bold fuchsia-text uppercase mb-1">CUPO DISPONIBLE ($)</label>
+                    <input type="number" id="edit-client-cupo" class="w-full border-2 fuchsia-border bg-white rounded-xl px-3 py-2 font-black fuchsia-text">
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black uppercase text-slate-700">CRÉDITOS Y TABLA DE PAGOS:</h4>
+                    <button onclick="openAddDebtPrompt()" class="px-3 py-1.5 fuchsia-btn rounded-xl text-xs font-bold shadow-md flex items-center space-x-1">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>Agregar Otra Deuda</span>
+                    </button>
+                </div>
+
+                <div id="admin-debts-container" class="space-y-4"></div>
+            </div>
+
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                <button onclick="deleteClientComplete()" class="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-xs">
+                    <i class="fa-solid fa-trash mr-1"></i> Eliminar Cliente Completo
+                </button>
+                <div class="flex space-x-2">
+                    <button onclick="closeEditModal()" class="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs">Cerrar</button>
+                    <button onclick="saveClientChanges()" class="px-4 py-2.5 fuchsia-btn rounded-xl font-bold text-xs shadow-md">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: CREAR / EDITAR PRODUCTO -->
+    <div id="modal-product-form" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 max-h-[92vh] overflow-y-auto custom-scrollbar relative">
+            
+            <button onclick="closeProductModal()" class="absolute top-6 right-6 text-slate-400 hover:text-slate-600 text-xl font-bold">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="border-b border-slate-100 pb-4">
+                <h3 id="product-modal-title" class="text-xl font-black text-pink-600 flex items-center space-x-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Configuración Inteligente de Producto Web</span>
+                </h3>
+            </div>
+
+            <form onsubmit="handleSaveProduct(event)" class="space-y-5 text-xs">
+                <input type="hidden" id="prod-edit-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Nombre del Producto *</label>
+                        <input type="text" id="prod-nombre" required placeholder="Ej: Vestido Elegante Gala Red" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Mundo *</label>
+                        <input type="text" id="prod-mundo" required placeholder="EJ: EVENTOS, FAMILIAR, B2B, TEXTIL..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium uppercase">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Descripción del Producto (Visible en Ver Op.)[cite: 1]</label>
+                    <textarea id="prod-descripcion" rows="3" placeholder="Ingresa los detalles, materiales, cuidados o información importante del producto..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-xs"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Categoría *</label>
+                        <input type="text" id="prod-categoria" required placeholder="Ej: Vestuario, Mobiliario..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Subcategoría</label>
+                        <input type="text" id="prod-subcategoria" placeholder="Ej: Vestidos Gala, Sillas..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Temporada *</label>
+                        <input type="text" id="prod-temporada" required placeholder="EJ: NAVIDAD, MADRES, HALLOWEEN..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium uppercase">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Precio Detal / Venta ($) *</label>
+                        <input type="number" id="prod-precio-detal" required value="0" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-black text-slate-900">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Precio Mayorista ($)</label>
+                        <input type="number" id="prod-precio-mayorista" value="0" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Cant. Mínima Mayorista</label>
+                        <input type="number" id="prod-cant-min-mayorista" value="6" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold fuchsia-text uppercase mb-1">% Anticipo Requerido *</label>
+                        <input type="number" id="prod-porcentaje-anticipo" required value="20" min="0" max="100" class="w-full bg-white border-2 fuchsia-border rounded-xl px-3 py-2 font-black fuchsia-text">
+                    </div>
+                </div>
+
+                <div class="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 space-y-1">
+                    <label class="block font-bold text-indigo-900 uppercase">Días de preparación / fabricación</label>
+                    <input type="number" id="prod-dias-preparacion" value="0" class="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 font-bold">
+                </div>
+
+                <div class="bg-pink-50/40 border border-pink-100 p-4 rounded-2xl flex flex-wrap gap-4 items-center justify-between font-bold text-slate-700">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chk-personalizable" class="accent-pink-600 w-4 h-4">
+                        <span>Personalizable</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chk-al-por-mayor" checked class="accent-pink-600 w-4 h-4">
+                        <span>Al por Mayor</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chk-venta" checked class="accent-pink-600 w-4 h-4">
+                        <span>Venta</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chk-alquiler" onchange="toggleAlquilerFields()" class="accent-pink-600 w-4 h-4">
+                        <span>Alquiler</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chk-credito" class="accent-pink-600 w-4 h-4">
+                        <span>Crédito</span>
+                    </label>
+                </div>
+
+                <div id="wrapper-alquiler-extra" class="grid grid-cols-2 gap-4 bg-amber-50 p-3 rounded-2xl border border-amber-200 hidden">
+                    <div>
+                        <label class="block font-bold text-amber-800 uppercase mb-1">Precio del Alquiler ($)</label>
+                        <input type="number" id="prod-precio-alquiler" value="0" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-amber-800 uppercase mb-1">Valor del Depósito ($)</label>
+                        <input type="number" id="prod-valor-deposito" value="0" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 font-bold">
+                    </div>
+                </div>
+
+                <!-- TALLAS DISPONIBLES -->
+                <div class="border border-indigo-100 bg-indigo-50/20 rounded-2xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-black text-indigo-900 uppercase">TALLAS DISPONIBLES & INCREMENTO</span>
+                        
+                        <div id="saved-tallas-template-wrapper" class="hidden flex items-center space-x-2">
+                            <button type="button" onclick="loadSavedTallasTemplate()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-[11px] shadow-sm flex items-center space-x-1 transition-all">
+                                <i class="fa-solid fa-clone text-[10px]"></i>
+                                <span>Usar Tallas Anteriores (<span id="saved-tallas-count">0</span>)</span>
+                            </button>
+                            <button type="button" onclick="clearSavedTallasTemplate()" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 font-bold rounded-full flex items-center justify-center text-xs transition-colors" title="Borrar plantilla guardada">
+                                ×
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="inp-talla-nombre" placeholder="Ej: S, M, L, XL" class="flex-1 bg-white border rounded-xl px-3 py-2">
+                        <input type="number" id="inp-talla-incremento" placeholder="Incremento $" class="w-48 bg-white border rounded-xl px-3 py-2">
+                        <button type="button" onclick="addTallaToList()" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl">+ Agregar</button>
+                    </div>
+
+                    <div id="list-tallas-tags" class="flex flex-wrap gap-2 pt-1"></div>
+                </div>
+
+                <div class="border border-pink-100 bg-pink-50/20 rounded-2xl p-4 space-y-3">
+                    <span class="font-black fuchsia-text uppercase">COLORES DISPONIBLES & INCREMENTO</span>
+                    <div class="flex gap-2">
+                        <input type="text" id="inp-color-nombre" placeholder="Ej: Rojo, Dorado" class="flex-1 bg-white border rounded-xl px-3 py-2">
+                        <input type="number" id="inp-color-incremento" placeholder="Incremento $" class="w-48 bg-white border rounded-xl px-3 py-2">
+                        <button type="button" onclick="addColorToList()" class="px-4 py-2 fuchsia-btn font-bold rounded-xl">+ Agregar</button>
+                    </div>
+                    <div id="list-colores-tags" class="flex flex-wrap gap-2 pt-1"></div>
+                </div>
+
+                <div class="border border-slate-200 rounded-2xl p-4 space-y-3 bg-white">
+                    <label class="block font-bold text-slate-700 uppercase">Fotos del Producto (Cada foto generará un producto independiente)[cite: 1]</label>
+                    <input type="file" id="prod-files-input" multiple accept="image/*" onchange="handleImageFilesSelected(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-pink-50 file:text-pink-600 hover:file:bg-pink-100">
+                    <p class="text-[11px] text-slate-400">Si subes varias fotos, al crear un nuevo producto se creará un producto independiente por cada foto con portada distinta.[cite: 1]</p>
+                    <div id="files-preview-container" class="flex flex-wrap gap-3 pt-2"></div>
+                </div>
+
+                <div class="flex items-center space-x-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeProductModal()" class="w-1/2 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold">Cancelar</button>
+                    <button type="submit" class="w-1/2 py-3 fuchsia-btn rounded-xl font-bold shadow-md">Guardar Producto(s)</button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 4: RECORTADOR DE IMAGEN (CROPPER.JS) -->
+    <div id="modal-cropper" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-black text-slate-900 text-sm uppercase flex items-center space-x-2">
+                    <i class="fa-solid fa-crop fuchsia-text"></i>
+                    <span>Recortar Foto para el Catálogo</span>
+                </h3>
+                <span id="cropper-counter" class="text-xs font-bold fuchsia-text">Foto 1 de 1</span>
+            </div>
+
+            <div class="max-h-[60vh] overflow-hidden bg-slate-900 rounded-2xl flex items-center justify-center">
+                <img id="image-to-crop" src="" alt="Para recortar" class="max-h-[50vh] block max-w-full">
+            </div>
+
+            <div class="flex justify-between items-center pt-2">
+                <button type="button" onclick="skipCurrentPhotoCrop()" class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs">Omitir recorte</button>
+                <button type="button" onclick="confirmCropPhoto()" class="px-6 py-2.5 fuchsia-btn font-black rounded-xl text-xs shadow-md flex items-center space-x-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span>Confirmar y Agregar Recorte</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrZHh0ZXNnd3FvaXpvYnhhYXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODMxNjIsImV4cCI6MjEwNzY1OTE2Mn0.rDQ8n8O6I9uHY6z4goQCTFfRjE8zExkifIRWFbBLycE';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let allClients = [];
+        let filteredClients = [];
+        let currentClientsPage = 1;
+        const clientsPerPage = 5;
+
+        let allProducts = [];
+        let filteredProducts = [];
+        let currentProductsPage = 1;
+        const productsPerPage = 5;
+
+        let tempTallas = [];
+        let tempColores = [];
+        let tempBase64Photos = [];
+        let tempOriginalPhotos = [];
+
+        let pendingImageQueue = [];
+        let currentCropper = null;
+
+        window.onload = function() {
+            const adminAuth = localStorage.getItem('cupissa_admin_logged');
+            if (adminAuth === 'true') {
+                document.getElementById('admin-login-screen').classList.add('hidden');
+                fetchAdminData();
+                fetchProductsData();
+            }
+        };
+
+        function switchTab(tab) {
+            const secCred = document.getElementById('tab-section-creditos');
+            const secCat = document.getElementById('tab-section-catalogo');
+            const btnCred = document.getElementById('tab-btn-creditos');
+            const btnCat = document.getElementById('tab-btn-catalogo');
+            const btnCredMob = document.getElementById('tab-btn-creditos-mob');
+            const btnCatMob = document.getElementById('tab-btn-catalogo-mob');
+
+            if (tab === 'creditos') {
+                secCred.classList.remove('hidden');
+                secCat.classList.add('hidden');
+                btnCred.className = "px-4 py-2 rounded-xl font-bold text-xs transition-all bg-pink-50 fuchsia-text border border-pink-200";
+                btnCat.className = "px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100";
+                if (btnCredMob && btnCatMob) {
+                    btnCredMob.className = "flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text";
+                    btnCatMob.className = "flex-1 py-2 rounded-xl font-bold text-xs text-slate-600";
+                }
+            } else {
+                secCred.classList.add('hidden');
+                secCat.classList.remove('hidden');
+                btnCat.className = "px-4 py-2 rounded-xl font-bold text-xs transition-all bg-pink-50 fuchsia-text border border-pink-200";
+                btnCred.className = "px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100";
+                if (btnCredMob && btnCatMob) {
+                    btnCredMob.className = "flex-1 py-2 rounded-xl font-bold text-xs text-slate-600";
+                    btnCatMob.className = "flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text";
+                }
+            }
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('admin-user-email').value.trim();
+            const pass = document.getElementById('admin-user-pass').value.trim();
+            if (email === 'contactocupissa@gmail.com' && pass === 'Deiner123.Cupissa') {
+                localStorage.setItem('cupissa_admin_logged', 'true');
+                document.getElementById('admin-login-screen').classList.add('hidden');
+                fetchAdminData();
+                fetchProductsData();
+            } else {
+                document.getElementById('admin-login-error').classList.remove('hidden');
+            }
+        }
+
+        function handleAdminLogout() {
+            localStorage.removeItem('cupissa_admin_logged');
+            document.getElementById('admin-login-screen').classList.remove('hidden');
+        }
+
+        async function fetchAdminData() {
+            const { data: clientes } = await supabaseClient.from('clientes').select('*, creditos(*)');
+            allClients = clientes || [];
+            filteredClients = [...allClients];
+            currentClientsPage = 1;
+            renderAdminTable();
+        }
+
+        function renderAdminTable() {
+            const tbody = document.getElementById('admin-tbody');
+            document.getElementById('val-total-clients').innerText = allClients.length;
+            tbody.innerHTML = '';
+
+            const totalPages = Math.ceil(filteredClients.length / clientsPerPage) || 1;
+            if (currentClientsPage > totalPages) currentClientsPage = totalPages;
+            if (currentClientsPage < 1) currentClientsPage = 1;
+
+            const startIdx = (currentClientsPage - 1) * clientsPerPage;
+            const endIdx = startIdx + clientsPerPage;
+            const clientsToShow = filteredClients.slice(startIdx, endIdx);
+
+            if (clientsToShow.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No se encontraron clientes.</td></tr>`;
+            } else {
+                clientsToShow.forEach(client => {
+                    const creditos = client.creditos || [];
+                    const creditosActivos = creditos.filter(c => c.estado === 'ACTIVO');
+                    const deudaTotal = creditosActivos.reduce((acc, c) => acc + Number(c.deuda_actual || 0), 0);
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-4 font-bold text-slate-900">${client.nombre}</td>
+                        <td class="p-4 font-mono font-bold fuchsia-text">${client.telefono}</td>
+                        <td class="p-4">${formatCOP(client.cupo_total || 0)}</td>
+                        <td class="p-4 font-black fuchsia-text">${formatCOP(client.cupo_disponible || 0)}</td>
+                        <td class="p-4 font-bold fuchsia-text">${formatCOP(deudaTotal)}</td>
+                        <td class="p-4 font-bold">${creditosActivos.length} Activa(s)</td>
+                        <td class="p-4 text-center">
+                            <button onclick="openEditModal('${client.id}')" class="px-3 py-1.5 bg-pink-50 fuchsia-text border border-pink-200 rounded-xl font-bold">Administrar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('clients-pagination-info').innerText = `Mostrando ${filteredClients.length > 0 ? startIdx + 1 : 0} a ${Math.min(endIdx, filteredClients.length)} de ${filteredClients.length} clientes`;
+            document.getElementById('btn-prev-clients').disabled = currentClientsPage === 1;
+            document.getElementById('btn-next-clients').disabled = endIdx >= filteredClients.length;
+        }
+
+        function changeClientsPage(direction) {
+            currentClientsPage += direction;
+            renderAdminTable();
+        }
+
+        function filterAdminTable() {
+            const query = document.getElementById('admin-search-input').value.trim().toLowerCase();
+            filteredClients = allClients.filter(c => {
+                const nombre = (c.nombre || '').toLowerCase();
+                const telefono = (c.telefono || '').toLowerCase();
+                return nombre.includes(query) || telefono.includes(query);
+            });
+            currentClientsPage = 1;
+            renderAdminTable();
+        }
+
+        function openNewClientModal() {
+            document.getElementById('new-client-fecha-inicio').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modal-new-client').classList.remove('hidden');
+        }
+
+        function closeNewClientModal() {
+            document.getElementById('modal-new-client').classList.add('hidden');
+        }
+
+        // VALIDACIÓN ANTI-DUPLICADOS AL CREAR CLIENTE
+        async function handleCreateNewClient(e) {
+            e.preventDefault();
+            const nombre = document.getElementById('new-client-name').value.trim();
+            const telefono = document.getElementById('new-client-phone').value.trim();
+            const cedula = document.getElementById('new-client-cedula').value.trim();
+            const cupoTotal = parseFloat(document.getElementById('new-client-cupo').value) || 0;
+            const deudaInicial = parseFloat(document.getElementById('new-client-deuda').value) || 0;
+            const fechaVencimiento = document.getElementById('new-client-fecha-inicio').value;
+            const frecuencia = document.getElementById('new-client-frecuencia').value;
+            const cuotas = parseInt(document.getElementById('new-client-cuotas').value) || 1;
+
+            const { data: existingClient, error: checkError } = await supabaseClient
+                .from('clientes')
+                .select('id, nombre, telefono, password')
+                .or(`telefono.eq.${telefono},password.eq.${cedula}`);
+
+            if (checkError) {
+                console.error("Error al consultar duplicados de clientes:", checkError);
+            }
+
+            if (existingClient && existingClient.length > 0) {
+                const matchPhone = existingClient.find(c => c.telefono === telefono);
+                const matchCedula = existingClient.find(c => c.password === cedula);
+
+                if (matchPhone && matchCedula) {
+                    alert(`¡NO SE PUEDE REGISTRAR! Ya existe un cliente con el mismo Teléfono (${telefono}) y la misma Cédula (${cedula}).`);
+                } else if (matchPhone) {
+                    alert(`¡NO SE PUEDE REGISTRAR! El número de teléfono (${telefono}) ya está registrado a nombre de: ${matchPhone.nombre}.`);
+                } else if (matchCedula) {
+                    alert(`¡NO SE PUEDE REGISTRAR! La cédula (${cedula}) ya está registrada a nombre de: ${matchCedula.nombre}.`);
+                }
+                return;
+            }
+
+            const { data: newClient, error } = await supabaseClient
+                .from('clientes')
+                .insert([{ nombre, telefono, password: cedula, cupo_total: cupoTotal, cupo_disponible: cupoTotal - deudaInicial }])
+                .select().single();
+
+            if (error) {
+                alert('Error al crear cliente: ' + error.message);
+                return;
+            }
+
+            if (deudaInicial > 0) {
+                await supabaseClient.from('creditos').insert([{
+                    cliente_id: newClient.id,
+                    monto_total: deudaInicial,
+                    deuda_actual: deudaInicial,
+                    frecuencia,
+                    numero_cuotas: cuotas,
+                    valor_cuota: Math.ceil(deudaInicial / cuotas),
+                    proximo_vencimiento: fechaVencimiento,
+                    estado: 'ACTIVO'
+                }]);
+            }
+
+            closeNewClientModal();
+            fetchAdminData();
+            alert('¡Cliente registrado exitosamente!');
+        }
+
+        function openEditModal(clientId) {
+            const client = allClients.find(c => c.id === clientId);
+            if (!client) return;
+
+            document.getElementById('edit-client-id').value = client.id;
+            document.getElementById('edit-client-name').value = client.nombre;
+            document.getElementById('edit-client-phone').value = client.telefono;
+            document.getElementById('edit-client-cupo').value = client.cupo_disponible || 0;
+
+            renderAdminDebtsList(client);
+            document.getElementById('modal-edit-client').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('modal-edit-client').classList.add('hidden');
+        }
+
+        function renderAdminDebtsList(client) {
+            const container = document.getElementById('admin-debts-container');
+            container.innerHTML = '';
+            const creditos = client.creditos || [];
+            if (creditos.length === 0) {
+                container.innerHTML = `<div class="p-4 bg-slate-50 text-slate-400 rounded-2xl text-center text-xs">Sin deudas activas.</div>`;
+                return;
+            }
+
+            creditos.forEach((cred, idx) => {
+                const totalCuotas = cred.numero_cuotas || 1;
+                const valorCuota = cred.valor_cuota || Math.ceil(cred.monto_total / totalCuotas);
+                const fechaBase = cred.proximo_vencimiento || new Date().toISOString().split('T')[0];
+                const frecuencia = cred.frecuencia || 'Quincenal';
+
+                let tablaCuotasHTML = '';
+                let fechaActualObj = new Date(fechaBase + 'T00:00:00');
+
+                for (let i = 1; i <= totalCuotas; i++) {
+                    const fechaStr = fechaActualObj.toISOString().split('T')[0];
+                    tablaCuotasHTML += `
+                        <tr class="border-b border-slate-100">
+                            <td class="py-1.5 px-2 font-bold fuchsia-text">Cuota #${i}</td>
+                            <td class="py-1.5 px-2 font-mono">${fechaStr}</td>
+                            <td class="py-1.5 px-2 font-bold">${formatCOP(valorCuota)}</td>
+                        </tr>
+                    `;
+
+                    if (frecuencia === 'Diario') {
+                        fechaActualObj.setDate(fechaActualObj.getDate() + 1);
+                    } else if (frecuencia === 'Semanal') {
+                        fechaActualObj.setDate(fechaActualObj.getDate() + 7);
+                    } else if (frecuencia === 'Quincenal') {
+                        fechaActualObj.setDate(fechaActualObj.getDate() + 15);
+                    } else if (frecuencia === 'Mensual') {
+                        fechaActualObj.setMonth(fechaActualObj.getMonth() + 1);
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-slate-200 space-y-3 text-xs";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center font-bold border-b border-slate-100 pb-2">
+                        <span>Deuda #${idx+1} (${formatCOP(cred.monto_total)}) - Estado: <strong class="${cred.estado === 'ACTIVO' ? 'text-pink-600' : 'text-emerald-600'}">${cred.estado}</strong></span>
+                        <span class="fuchsia-text">Saldo: ${formatCOP(cred.deuda_actual)}</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl">
+                        <div>
+                            <label class="block font-bold text-slate-500 uppercase mb-1">Fecha de Pago (Próxima):</label>
+                            <input type="date" id="input-fecha-${cred.id}" value="${cred.proximo_vencimiento || ''}" class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-500 uppercase mb-1">Frecuencia:</label>
+                            <select id="input-frecuencia-${cred.id}" class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold">
+                                <option value="Quincenal" ${frecuencia === 'Quincenal' ? 'selected' : ''}>Quincenal</option>
+                                <option value="Semanal" ${frecuencia === 'Semanal' ? 'selected' : ''}>Semanal</option>
+                                <option value="Diario" ${frecuencia === 'Diario' ? 'selected' : ''}>Diario</option>
+                                <option value="Mensual" ${frecuencia === 'Mensual' ? 'selected' : ''}>Mensual</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <span class="font-bold text-slate-700 uppercase block text-[11px]">Proyección Tabla de Pagos (${totalCuotas} Cuotas):</span>
+                        <div class="max-h-36 overflow-y-auto custom-scrollbar border border-slate-100 rounded-xl p-2 bg-slate-50/50">
+                            <table class="w-full text-left text-[11px]">
+                                <thead>
+                                    <tr class="text-slate-400 border-b border-slate-200">
+                                        <th class="p-1">CUOTA</th>
+                                        <th class="p-1">FECHA</th>
+                                        <th class="p-1">VALOR</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tablaCuotasHTML}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-2">
+                        <button onclick="actualizarFechaFrecuenciaDeuda('${cred.id}')" class="px-3 py-1.5 fuchsia-btn rounded-lg font-bold text-xs">Actualizar Fecha y Frecuencia</button>
+                        ${cred.estado === 'ACTIVO' ? `<button onclick="marcarDeudaComoPaga('${cred.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold">Marcar como Paga ✓</button>` : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function actualizarFechaFrecuenciaDeuda(creditoId) {
+            const nuevaFecha = document.getElementById(`input-fecha-${creditoId}`).value;
+            const nuevaFrecuencia = document.getElementById(`input-frecuencia-${creditoId}`).value;
+
+            if (!nuevaFecha) {
+                alert('Por favor selecciona una fecha válida.');
+                return;
+            }
+
+            const { error } = await supabaseClient
+                .from('creditos')
+                .update({ proximo_vencimiento: nuevaFecha, frecuencia: nuevaFrecuencia })
+                .eq('id', creditoId);
+
+            if (error) {
+                alert('Error al actualizar: ' + error.message);
+                return;
+            }
+
+            alert('¡Fecha y frecuencia actualizadas con éxito!');
+            fetchAdminData();
+            closeEditModal();
+        }
+
+        async function marcarDeudaComoPaga(creditoId) {
+            if (!confirm('¿Estás seguro de marcar esta cuota/deuda como PAGA?')) return;
+            await supabaseClient.from('creditos').update({ estado: 'PAGADO', deuda_actual: 0 }).eq('id', creditoId);
+            fetchAdminData();
+            closeEditModal();
+            alert('¡Deuda marcada como pagada con éxito!');
+        }
+
+        async function saveClientChanges() {
+            const clientId = document.getElementById('edit-client-id').value;
+            const nuevoCupo = parseFloat(document.getElementById('edit-client-cupo').value) || 0;
+            await supabaseClient.from('clientes').update({ cupo_disponible: nuevoCupo }).eq('id', clientId);
+            closeEditModal();
+            fetchAdminData();
+            alert('¡Actualizado con éxito!');
+        }
+
+        async function deleteClientComplete() {
+            const id = document.getElementById('edit-client-id').value;
+            if (!confirm('¿Estás totalmente seguro de eliminar este cliente? Se borrarán sus créditos y todos sus datos de forma permanente.')) return;
+            
+            try {
+                await supabaseClient.from('creditos').delete().eq('cliente_id', id);
+                await supabaseClient.from('clientes').delete().eq('id', id);
+            } catch (e) {
+                console.error("Error al eliminar en base de datos:", e);
+            }
+
+            closeEditModal();
+            fetchAdminData();
+            alert('El cliente ha sido eliminado completamente del sistema.');
+        }
+
+        async function openAddDebtPrompt() {
+            const clientId = document.getElementById('edit-client-id').value;
+            const monto = parseFloat(prompt('Monto de la nueva deuda ($):'));
+            if (!monto) return;
+            const cuotas = parseInt(prompt('Número de cuotas:', '4')) || 4;
+            const fechaVenc = prompt('Fecha de vencimiento (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+
+            await supabaseClient.from('creditos').insert([{
+                cliente_id: clientId,
+                monto_total: monto,
+                deuda_actual: monto,
+                frecuencia: 'Quincenal',
+                numero_cuotas: cuotas,
+                valor_cuota: Math.ceil(monto / cuotas),
+                proximo_vencimiento: fechaVenc,
+                estado: 'ACTIVO'
+            }]);
+            fetchAdminData();
+            closeEditModal();
+        }
+
+        // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
+        async function fetchProductsData() {
+            try {
+                const { data, error } = await supabaseClient.from('productos').select('*').order('created_at', { ascending: true });
+                if (error) {
+                    const fallbackRes = await supabaseClient.from('productos').select('*');
+                    if (fallbackRes.error) throw fallbackRes.error;
+                    allProducts = fallbackRes.data || [];
+                } else {
+                    allProducts = data || [];
+                }
+                
+                if (allProducts.length > 0) {
+                    localStorage.setItem('cupissa_cache_products', JSON.stringify(allProducts));
+                } else {
+                    const cached = localStorage.getItem('cupissa_cache_products');
+                    if (cached) allProducts = JSON.parse(cached);
+                    else allProducts = JSON.parse(localStorage.getItem('cupissa_local_products') || '[]');
+                }
+            } catch (e) {
+                console.error("Error al obtener productos:", e);
+                const cached = localStorage.getItem('cupissa_cache_products');
+                if (cached) allProducts = JSON.parse(cached);
+                else allProducts = JSON.parse(localStorage.getItem('cupissa_local_products') || '[]');
+            }
+            filteredProducts = [...allProducts];
+            currentProductsPage = 1;
+            renderProductsTable();
+        }
+
+        function renderProductsTable() {
+            const tbody = document.getElementById('products-tbody');
+            const totalProdEl = document.getElementById('val-total-products');
+            if (totalProdEl) totalProdEl.innerText = allProducts.length;
+            tbody.innerHTML = '';
+
+            const totalPages = Math.ceil(filteredProducts.length / productsPerPage) || 1;
+            if (currentProductsPage > totalPages) currentProductsPage = totalPages;
+            if (currentProductsPage < 1) currentProductsPage = 1;
+
+            const startIdx = (currentProductsPage - 1) * productsPerPage;
+            const endIdx = startIdx + productsPerPage;
+            const productsToShow = filteredProducts.slice(startIdx, endIdx);
+
+            if (productsToShow.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">No se encontraron productos con ese nombre.</td></tr>`;
+            } else {
+                productsToShow.forEach(p => {
+                    const foto = p.fotos && p.fotos.length > 0 ? p.fotos[0] : '';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-3"><img src="${foto}" class="w-10 h-10 object-cover rounded-xl border"></td>
+                        <td class="p-3 font-bold">${p.nombre}</td>
+                        <td class="p-3 font-bold uppercase fuchsia-text">${p.mundo}</td>
+                        <td class="p-3">${p.categoria} / <span class="font-bold text-pink-600">${p.temporada}</span></td>
+                        <td class="p-3 font-black">${formatCOP(p.precio_detal)}</td>
+                        <td class="p-3">${formatCOP(p.precio_mayorista)}</td>
+                        <td class="p-3 font-bold fuchsia-text">${p.porcentaje_anticipo}%</td>
+                        <td class="p-3 text-center space-x-1">
+                            <button onclick="openEditProductModal('${p.id}')" class="p-2 bg-pink-50 fuchsia-text rounded-xl font-bold hover:bg-pink-100 transition-colors" title="Editar Producto"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteProduct('${p.id}')" class="p-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors" title="Eliminar Producto"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('products-pagination-info').innerText = `Mostrando ${filteredProducts.length > 0 ? startIdx + 1 : 0} a ${Math.min(endIdx, filteredProducts.length)} de ${filteredProducts.length} productos`;
+            document.getElementById('btn-prev-products').disabled = currentProductsPage === 1;
+            document.getElementById('btn-next-products').disabled = endIdx >= filteredProducts.length;
+        }
+
+        function changeProductsPage(direction) {
+            currentProductsPage += direction;
+            renderProductsTable();
+        }
+
+        function filterAdminProductsTable() {
+            const query = document.getElementById('admin-search-product-input').value.trim().toLowerCase();
+            filteredProducts = allProducts.filter(p => {
+                const nombre = (p.nombre || '').toLowerCase();
+                return nombre.includes(query);
+            });
+            currentProductsPage = 1;
+            renderProductsTable();
+        }
+
+        function checkTallasTemplateUI() {
+            const saved = JSON.parse(localStorage.getItem('cupissa_saved_tallas_template') || '[]');
+            const wrap = document.getElementById('saved-tallas-template-wrapper');
+            const countSpan = document.getElementById('saved-tallas-count');
+
+            if (saved && saved.length > 0) {
+                countSpan.innerText = saved.length;
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+            }
+        }
+
+        function loadSavedTallasTemplate() {
+            const saved = JSON.parse(localStorage.getItem('cupissa_saved_tallas_template') || '[]');
+            if (!saved || saved.length === 0) return;
+
+            saved.forEach(item => {
+                if (!tempTallas.some(t => t.nombre.toUpperCase() === item.nombre.toUpperCase())) {
+                    tempTallas.push({ nombre: item.nombre, incremento: item.incremento || 0 });
+                }
+            });
+
+            renderTallasTags();
+        }
+
+        function clearSavedTallasTemplate() {
+            if (confirm('¿Deseas eliminar la plantilla de tallas guardada?')) {
+                localStorage.removeItem('cupissa_saved_tallas_template');
+                checkTallasTemplateUI();
+            }
+        }
+
+        function openProductModal() {
+            document.getElementById('prod-edit-id').value = '';
+            document.getElementById('product-modal-title').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i><span>Configuración Inteligente de Producto Web</span>`;
+            tempTallas = [];
+            tempColores = [];
+            tempBase64Photos = [];
+            tempOriginalPhotos = [];
+            pendingImageQueue = [];
+            document.getElementById('prod-nombre').value = '';
+            document.getElementById('prod-descripcion').value = '';
+            document.getElementById('prod-mundo').value = '';
+            document.getElementById('prod-categoria').value = '';
+            document.getElementById('prod-subcategoria').value = '';
+            document.getElementById('prod-temporada').value = '';
+            document.getElementById('prod-precio-detal').value = '0';
+            document.getElementById('prod-precio-mayorista').value = '0';
+            document.getElementById('prod-cant-min-mayorista').value = '6';
+            document.getElementById('prod-porcentaje-anticipo').value = '20';
+            document.getElementById('prod-dias-preparacion').value = '0';
+            document.getElementById('chk-personalizable').checked = false;
+            document.getElementById('chk-al-por-mayor').checked = true;
+            document.getElementById('chk-venta').checked = true;
+            document.getElementById('chk-alquiler').checked = false;
+            document.getElementById('chk-credito').checked = false;
+            document.getElementById('prod-precio-alquiler').value = '0';
+            document.getElementById('prod-valor-deposito').value = '0';
+            toggleAlquilerFields();
+            checkTallasTemplateUI();
+            renderTallasTags();
+            renderColoresTags();
+            renderPreviewPhotos();
+            document.getElementById('prod-files-input').value = '';
+            document.getElementById('modal-product-form').classList.remove('hidden');
+        }
+
+        function openEditProductModal(prodId) {
+            const prod = allProducts.find(p => p.id == prodId);
+            if (!prod) return;
+
+            document.getElementById('prod-edit-id').value = prod.id;
+            document.getElementById('product-modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square"></i><span>Editar Producto: ${prod.nombre}</span>`;
+            
+            document.getElementById('prod-nombre').value = prod.nombre || '';
+            document.getElementById('prod-descripcion').value = prod.descripcion || '';
+            document.getElementById('prod-mundo').value = prod.mundo || '';
+            document.getElementById('prod-categoria').value = prod.categoria || '';
+            document.getElementById('prod-subcategoria').value = prod.subcategoria || '';
+            document.getElementById('prod-temporada').value = prod.temporada || '';
+            document.getElementById('prod-precio-detal').value = prod.precio_detal || 0;
+            document.getElementById('prod-precio-mayorista').value = prod.precio_mayorista || 0;
+            document.getElementById('prod-cant-min-mayorista').value = prod.cant_min_mayorista || 6;
+            document.getElementById('prod-porcentaje-anticipo').value = prod.porcentaje_anticipo || 20;
+            document.getElementById('prod-dias-preparacion').value = prod.dias_preparacion || 0;
+
+            document.getElementById('chk-personalizable').checked = !!prod.personalizable;
+            document.getElementById('chk-al-por-mayor').checked = !!prod.al_por_mayor;
+            document.getElementById('chk-venta').checked = !!prod.venta;
+            document.getElementById('chk-alquiler').checked = !!prod.alquiler;
+            document.getElementById('chk-credito').checked = !!prod.credito;
+
+            document.getElementById('prod-precio-alquiler').value = prod.precio_alquiler || 0;
+            document.getElementById('prod-valor-deposito').value = prod.valor_deposito || 0;
+            toggleAlquilerFields();
+
+            tempTallas = prod.tallas ? [...prod.tallas] : [];
+            tempColores = prod.colores ? [...prod.colores] : [];
+            tempBase64Photos = prod.fotos ? [...prod.fotos] : [];
+            tempOriginalPhotos = prod.fotos_originales ? [...prod.fotos_originales] : [...tempBase64Photos];
+            pendingImageQueue = [];
+
+            checkTallasTemplateUI();
+            renderTallasTags();
+            renderColoresTags();
+            renderPreviewPhotos();
+            document.getElementById('prod-files-input').value = '';
+            document.getElementById('modal-product-form').classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('modal-product-form').classList.add('hidden');
+        }
+
+        function toggleAlquilerFields() {
+            const chk = document.getElementById('chk-alquiler').checked;
+            const wrap = document.getElementById('wrapper-alquiler-extra');
+            if (chk) wrap.classList.remove('hidden');
+            else wrap.classList.add('hidden');
+        }
+
+        function addTallaToList() {
+            const name = document.getElementById('inp-talla-nombre').value.trim();
+            const inc = parseFloat(document.getElementById('inp-talla-incremento').value) || 0;
+            if (!name) return;
+            tempTallas.push({ nombre: name, incremento: inc });
+            document.getElementById('inp-talla-nombre').value = '';
+            document.getElementById('inp-talla-incremento').value = '';
+            renderTallasTags();
+        }
+
+        function renderTallasTags() {
+            const container = document.getElementById('list-tallas-tags');
+            container.innerHTML = '';
+            tempTallas.forEach((t, i) => {
+                const tag = document.createElement('span');
+                tag.className = "bg-indigo-100 text-indigo-800 font-bold px-2 py-1 rounded-xl text-[11px] flex items-center space-x-1";
+                tag.innerHTML = `<span>${t.nombre} (+${formatCOP(t.incremento)})</span><button type="button" onclick="tempTallas.splice(${i},1);renderTallasTags()" class="ml-1 text-red-500 hover:text-red-700 font-bold">×</button>`;
+                container.appendChild(tag);
+            });
+        }
+
+        function addColorToList() {
+            const name = document.getElementById('inp-color-nombre').value.trim();
+            const inc = parseFloat(document.getElementById('inp-color-incremento').value) || 0;
+            if (!name) return;
+            tempColores.push({ nombre: name, incremento: inc });
+            document.getElementById('inp-color-nombre').value = '';
+            document.getElementById('inp-color-incremento').value = '';
+            renderColoresTags();
+        }
+
+        function renderColoresTags() {
+            const container = document.getElementById('list-colores-tags');
+            container.innerHTML = '';
+            tempColores.forEach((c, i) => {
+                const tag = document.createElement('span');
+                tag.className = "bg-pink-100 fuchsia-text font-bold px-2 py-1 rounded-xl text-[11px] flex items-center space-x-1";
+                tag.innerHTML = `<span>${c.nombre} (+${formatCOP(c.incremento)})</span><button type="button" onclick="tempColores.splice(${i},1);renderColoresTags()" class="ml-1 text-red-500 hover:text-red-700 font-bold">×</button>`;
+                container.appendChild(tag);
+            });
+        }
+
+        function handleImageFilesSelected(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            pendingImageQueue = [];
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    const originalBase64 = evt.target.result;
+                    pendingImageQueue.push({ original: originalBase64 });
+                    if (pendingImageQueue.length === 1 && !currentCropper) {
+                        startNextCrop();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            e.target.value = '';
+        }
+
+        function startNextCrop() {
+            if (pendingImageQueue.length === 0) return;
+            const item = pendingImageQueue[0];
+            
+            document.getElementById('cropper-counter').innerText = `Recortando foto (Faltan ${pendingImageQueue.length})`;
+            const imgElement = document.getElementById('image-to-crop');
+            imgElement.src = item.original;
+
+            document.getElementById('modal-cropper').classList.remove('hidden');
+
+            if (currentCropper) {
+                currentCropper.destroy();
+            }
+
+            currentCropper = new Cropper(imgElement, {
+                aspectRatio: 1,
+                viewMode: 2,
+                autoCropArea: 0.9,
+                responsive: true,
+            });
+        }
+
+        function confirmCropPhoto() {
+            if (!currentCropper) return;
+
+            const canvas = currentCropper.croppedCanvas || currentCropper.getCroppedCanvas({
+                width: 800,
+                height: 800
+            });
+
+            if (canvas) {
+                const croppedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                tempBase64Photos.push(croppedBase64);
+                tempOriginalPhotos.push(pendingImageQueue[0].original);
+                renderPreviewPhotos();
+            }
+
+            pendingImageQueue.shift();
+            closeCropperModal();
+
+            if (pendingImageQueue.length > 0) {
+                setTimeout(startNextCrop, 300);
+            }
+        }
+
+        function skipCurrentPhotoCrop() {
+            if (pendingImageQueue.length > 0) {
+                tempBase64Photos.push(pendingImageQueue[0].original);
+                tempOriginalPhotos.push(pendingImageQueue[0].original);
+                renderPreviewPhotos();
+                pendingImageQueue.shift();
+            }
+            closeCropperModal();
+
+            if (pendingImageQueue.length > 0) {
+                setTimeout(startNextCrop, 300);
+            }
+        }
+
+        function closeCropperModal() {
+            if (currentCropper) {
+                currentCropper.destroy();
+                currentCropper = null;
+            }
+            document.getElementById('modal-cropper').classList.add('hidden');
+        }
+
+        function renderPreviewPhotos() {
+            const container = document.getElementById('files-preview-container');
+            container.innerHTML = '';
+            tempBase64Photos.forEach((src, idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = "relative group";
+                wrapper.innerHTML = `
+                    <img src="${src}" class="w-16 h-16 object-cover rounded-2xl border-2 fuchsia-border shadow-sm">
+                    <button type="button" onclick="removeTempPhoto(${idx})" class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-700">×</button>
+                `;
+                container.appendChild(wrapper);
+            });
+        }
+
+        function removeTempPhoto(index) {
+            tempBase64Photos.splice(index, 1);
+            tempOriginalPhotos.splice(index, 1);
+            renderPreviewPhotos();
+        }
+
+        async function uploadBase64ToStorage(dataUrl) {
+            if (!dataUrl || !dataUrl.startsWith('data:')) {
+                return dataUrl;
+            }
+            try {
+                const blob = dataURLtoBlob(dataUrl);
+                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`;
+                const filePath = `products/${fileName}`;
+
+                const { data, error } = await supabaseClient.storage
+                    .from('productos-cupissa')
+                    .upload(filePath, blob, {
+                        cacheControl: '3600',
+                        upsert: false
+                    });
+
+                if (error) throw error;
+
+                const { data: publicData } = supabaseClient.storage
+                    .from('productos-cupissa')
+                    .getPublicUrl(filePath);
+
+                return publicData.publicUrl;
+            } catch (err) {
+                console.error("Error al subir imagen a Supabase Storage:", err);
+                return dataUrl;
+            }
+        }
+
+        function dataURLtoBlob(dataurl) {
+            let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
+
+        async function getImageHash(imgUrlOrBase64) {
+            try {
+                let base64String = imgUrlOrBase64;
+                if (!imgUrlOrBase64.startsWith('data:')) {
+                    const response = await fetch(imgUrlOrBase64);
+                    const blob = await response.blob();
+                    base64String = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.readAsDataURL(blob);
+                    });
+                }
+                const rawData = base64String.split(',')[1] || base64String;
+                return CryptoJS.SHA256(rawData).toString();
+            } catch (e) {
+                console.error("Error calculando hash de imagen:", e);
+                return null;
+            }
+        }
+
+        async function handleSaveProduct(e) {
+            e.preventDefault();
+            const editId = document.getElementById('prod-edit-id').value;
+
+            if (tempBase64Photos.length > 0) {
+                const existingPhotosWithProd = [];
+                allProducts.forEach(prod => {
+                    if (editId && prod.id == editId) return;
+                    if (prod.fotos && prod.fotos.length > 0) {
+                        prod.fotos.forEach(f => existingPhotosWithProd.push({ url: f, prodNombre: prod.nombre }));
+                    }
+                    if (prod.fotos_originales && prod.fotos_originales.length > 0) {
+                        prod.fotos_originales.forEach(f => existingPhotosWithProd.push({ url: f, prodNombre: prod.nombre }));
+                    }
+                });
+
+                if (existingPhotosWithProd.length > 0) {
+                    const existingHashes = [];
+                    for (const item of existingPhotosWithProd) {
+                        const h = await getImageHash(item.url);
+                        if (h) existingHashes.push({ hash: h, prodNombre: item.prodNombre });
+                    }
+
+                    for (let i = 0; i < tempBase64Photos.length; i++) {
+                        const newHash = await getImageHash(tempBase64Photos[i]);
+                        const duplicate = existingHashes.find(item => item.hash === newHash);
+
+                        if (duplicate) {
+                            alert(`¡NO SE PUEDE PUBLICAR! La foto #${i + 1} ingresada ya existe en el catálogo y está publicada en el producto: "${duplicate.prodNombre}". Por favor elimina la foto duplicada para continuar.`);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if (tempTallas.length > 0) {
+                localStorage.setItem('cupissa_saved_tallas_template', JSON.stringify(tempTallas));
+            }
+
+            const uploadedPhotos = [];
+            for (const fotoUrl of tempBase64Photos) {
+                const finalUrl = await uploadBase64ToStorage(fotoUrl);
+                uploadedPhotos.push(finalUrl);
+            }
+
+            const uploadedOriginals = [];
+            for (const origUrl of tempOriginalPhotos) {
+                const finalUrl = await uploadBase64ToStorage(origUrl);
+                uploadedOriginals.push(finalUrl);
+            }
+
+            const baseProductData = {
+                nombre: document.getElementById('prod-nombre').value.trim(),
+                descripcion: document.getElementById('prod-descripcion').value.trim(),
+                mundo: document.getElementById('prod-mundo').value.trim().toUpperCase(),
+                categoria: document.getElementById('prod-categoria').value.trim(),
+                subcategoria: document.getElementById('prod-subcategoria').value.trim(),
+                temporada: document.getElementById('prod-temporada').value.trim().toUpperCase(),
+                precio_detal: parseFloat(document.getElementById('prod-precio-detal').value) || 0,
+                precio_mayorista: parseFloat(document.getElementById('prod-precio-mayorista').value) || 0,
+                cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,
+                porcentaje_anticipo: parseFloat(document.getElementById('prod-porcentaje-anticipo').value) || 20,
+                dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 0,
+                personalizable: document.getElementById('chk-personalizable').checked,
+                al_por_mayor: document.getElementById('chk-al-por-mayor').checked,
+                venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
+                alquiler: document.getElementById('chk-alquiler').checked,
+                credito: document.getElementById('chk-credito').checked,
+                precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
+                valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
+                tallas: tempTallas,
+                colores: tempColores
+            };
+
+            const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';
+
+            try {
+                if (editId) {
+                    const singleData = {
+                        ...baseProductData,
+                        fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
+                        fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : (uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage])
+                    };
+                    const { error } = await supabaseClient.from('productos').update(singleData).eq('id', editId);
+                    if (error) throw error;
+                } else {
+                    const photosCount = uploadedPhotos.length;
+                    
+                    if (photosCount > 1) {
+                        const productsToInsert = [];
+                        for (let i = 0; i < photosCount; i++) {
+                            const currentPhoto = uploadedPhotos[i];
+                            const currentOrig = uploadedOriginals[i] || currentPhoto;
+                            
+                            const otherPhotos = uploadedPhotos.filter((_, idx) => idx !== i);
+                            const otherOrigs = uploadedOriginals.filter((_, idx) => idx !== i);
+
+                            const finalFotos = [currentPhoto, ...otherPhotos];
+                            const finalOrigs = [currentOrig, ...otherOrigs];
+
+                            productsToInsert.push({
+                                ...baseProductData,
+                                fotos: finalFotos,
+                                fotos_originales: finalOrigs
+                            });
+                        }
+                        const { error } = await supabaseClient.from('productos').insert(productsToInsert);
+                        if (error) throw error;
+                    } else {
+                        const singleData = {
+                            ...baseProductData,
+                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
+                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : (uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage])
+                        };
+                        const { error } = await supabaseClient.from('productos').insert([singleData]);
+                        if (error) throw error;
+                    }
+                }
+            } catch (err) {
+                console.warn("Fallo en Supabase, guardando localmente:", err);
+                if (editId) {
+                    const idx = allProducts.findIndex(p => p.id == editId);
+                    if (idx >= 0) {
+                        allProducts[idx] = {
+                            ...baseProductData,
+                            id: editId,
+                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
+                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : [defaultImage]
+                        };
+                    }
+                } else {
+                    const photosCount = uploadedPhotos.length;
+                    if (photosCount > 1) {
+                        for (let i = 0; i < photosCount; i++) {
+                            const currentPhoto = uploadedPhotos[i];
+                            const currentOrig = uploadedOriginals[i] || currentPhoto;
+                            const otherPhotos = uploadedPhotos.filter((_, idx) => idx !== i);
+                            const otherOrigs = uploadedOriginals.filter((_, idx) => idx !== i);
+
+                            allProducts.push({
+                                ...baseProductData,
+                                id: 'loc_' + Date.now() + '_' + i,
+                                fotos: [currentPhoto, ...otherPhotos],
+                                fotos_originales: [currentOrig, ...otherOrigs]
+                            });
+                        }
+                    } else {
+                        allProducts.push({
+                            ...baseProductData,
+                            id: 'loc_' + Date.now(),
+                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
+                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : [defaultImage]
+                        });
+                    }
+                }
+                localStorage.setItem('cupissa_local_products', JSON.stringify(allProducts));
+            }
+
+            closeProductModal();
+            fetchProductsData();
+            alert(editId ? '¡Producto actualizado exitosamente!' : '¡Producto(s) creado(s) exitosamente!');
+        }
+
+        async function deleteProduct(prodId) {
+            if (!confirm('¿Eliminar producto?')) return;
+            try {
+                await supabaseClient.from('productos').delete().eq('id', prodId);
+            } catch (e) {
+                allProducts = allProducts.filter(p => p.id != prodId);
+                localStorage.setItem('cupissa_local_products', JSON.stringify(allProducts));
+            }
+            fetchProductsData();
+        }
+
+        function formatCOP(val) {
+            return '$ ' + new Intl.NumberFormat('es-CO').format(val || 0);
+        }
+    </script>
+</body>
+</html>

@@ -196,7 +196,7 @@
                         <i class="fa-solid fa-wand-magic-sparkles fuchsia-text"></i>
                         <span>Gestión Inteligente de Productos</span>
                     </h2>
-                    <p class="text-xs text-slate-400 mt-1">Crea, edita y organiza los productos visibles en catalogo.html[cite: 1]</p>
+                    <p class="text-xs text-slate-400 mt-1">Crea, edita y organiza los productos visibles en catalogo.html</p>
                 </div>
                 <button onclick="openProductModal()" class="px-5 py-3 fuchsia-btn rounded-2xl text-xs font-black shadow-md flex items-center space-x-2 self-start sm:self-center">
                     <i class="fa-solid fa-plus-circle"></i>
@@ -219,7 +219,7 @@
             </div>
 
             <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-6 space-y-4">
-                <h3 class="font-black text-slate-900 text-sm uppercase">Productos Registrados en el Catálogo[cite: 1]</h3>
+                <h3 class="font-black text-slate-900 text-sm uppercase">Productos Registrados en el Catálogo</h3>
                 <div class="overflow-x-auto custom-scrollbar">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
@@ -403,7 +403,7 @@
                 </div>
 
                 <div>
-                    <label class="block font-bold text-slate-700 uppercase mb-1">Descripción del Producto (Visible en Ver Op.)[cite: 1]</label>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Descripción del Producto (Visible en Ver Op.)</label>
                     <textarea id="prod-descripcion" rows="3" placeholder="Ingresa los detalles, materiales, cuidados o información importante del producto..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-xs"></textarea>
                 </div>
 
@@ -516,15 +516,17 @@
                 </div>
 
                 <div class="border border-slate-200 rounded-2xl p-4 space-y-3 bg-white">
-                    <label class="block font-bold text-slate-700 uppercase">Fotos del Producto (Cada foto generará un producto independiente)[cite: 1]</label>
+                    <label class="block font-bold text-slate-700 uppercase">Fotos del Producto (Cada foto generará un producto independiente)</label>
                     <input type="file" id="prod-files-input" multiple accept="image/*" onchange="handleImageFilesSelected(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-pink-50 file:text-pink-600 hover:file:bg-pink-100">
-                    <p class="text-[11px] text-slate-400">Si subes varias fotos, al crear un nuevo producto se creará un producto independiente por cada foto con portada distinta.[cite: 1]</p>
+                    <p class="text-[11px] text-slate-400">Si subes varias fotos, al crear un nuevo producto se creará un producto independiente por cada foto con portada distinta.</p>
                     <div id="files-preview-container" class="flex flex-wrap gap-3 pt-2"></div>
                 </div>
 
                 <div class="flex items-center space-x-3 pt-3 border-t border-slate-100">
                     <button type="button" onclick="closeProductModal()" class="w-1/2 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold">Cancelar</button>
-                    <button type="submit" class="w-1/2 py-3 fuchsia-btn rounded-xl font-bold shadow-md">Guardar Producto(s)</button>
+                    <button type="submit" class="w-1/2 py-3 fuchsia-btn rounded-xl font-bold shadow-md flex items-center justify-center space-x-2">
+                        <span>Guardar Producto(s)</span>
+                    </button>
                 </div>
 
             </form>
@@ -1377,80 +1379,57 @@
         async function handleSaveProduct(e) {
             e.preventDefault();
             const editId = document.getElementById('prod-edit-id').value;
-
-            if (tempBase64Photos.length > 0) {
-                const existingPhotosWithProd = [];
-                allProducts.forEach(prod => {
-                    if (editId && prod.id == editId) return;
-                    if (prod.fotos && prod.fotos.length > 0) {
-                        prod.fotos.forEach(f => existingPhotosWithProd.push({ url: f, prodNombre: prod.nombre }));
-                    }
-                    if (prod.fotos_originales && prod.fotos_originales.length > 0) {
-                        prod.fotos_originales.forEach(f => existingPhotosWithProd.push({ url: f, prodNombre: prod.nombre }));
-                    }
-                });
-
-                if (existingPhotosWithProd.length > 0) {
-                    const existingHashes = [];
-                    for (const item of existingPhotosWithProd) {
-                        const h = await getImageHash(item.url);
-                        if (h) existingHashes.push({ hash: h, prodNombre: item.prodNombre });
-                    }
-
-                    for (let i = 0; i < tempBase64Photos.length; i++) {
-                        const newHash = await getImageHash(tempBase64Photos[i]);
-                        const duplicate = existingHashes.find(item => item.hash === newHash);
-
-                        if (duplicate) {
-                            alert(`¡NO SE PUEDE PUBLICAR! La foto #${i + 1} ingresada ya existe en el catálogo y está publicada en el producto: "${duplicate.prodNombre}". Por favor elimina la foto duplicada para continuar.`);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            if (tempTallas.length > 0) {
-                localStorage.setItem('cupissa_saved_tallas_template', JSON.stringify(tempTallas));
-            }
-
-            const uploadedPhotos = [];
-            for (const fotoUrl of tempBase64Photos) {
-                const finalUrl = await uploadBase64ToStorage(fotoUrl);
-                uploadedPhotos.push(finalUrl);
-            }
-
-            const uploadedOriginals = [];
-            for (const origUrl of tempOriginalPhotos) {
-                const finalUrl = await uploadBase64ToStorage(origUrl);
-                uploadedOriginals.push(finalUrl);
-            }
-
-            const baseProductData = {
-                nombre: document.getElementById('prod-nombre').value.trim(),
-                descripcion: document.getElementById('prod-descripcion').value.trim(),
-                mundo: document.getElementById('prod-mundo').value.trim().toUpperCase(),
-                categoria: document.getElementById('prod-categoria').value.trim(),
-                subcategoria: document.getElementById('prod-subcategoria').value.trim(),
-                temporada: document.getElementById('prod-temporada').value.trim().toUpperCase(),
-                precio_detal: parseFloat(document.getElementById('prod-precio-detal').value) || 0,
-                precio_mayorista: parseFloat(document.getElementById('prod-precio-mayorista').value) || 0,
-                cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,
-                porcentaje_anticipo: parseFloat(document.getElementById('prod-porcentaje-anticipo').value) || 20,
-                dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 0,
-                personalizable: document.getElementById('chk-personalizable').checked,
-                al_por_mayor: document.getElementById('chk-al-por-mayor').checked,
-                venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
-                alquiler: document.getElementById('chk-alquiler').checked,
-                credito: document.getElementById('chk-credito').checked,
-                precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
-                valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
-                tallas: tempTallas,
-                colores: tempColores
-            };
-
-            const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';
+            
+            // Estado de carga en el botón
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Guardando...</span>`;
 
             try {
+                // Plantilla de tallas
+                if (tempTallas.length > 0) {
+                    localStorage.setItem('cupissa_saved_tallas_template', JSON.stringify(tempTallas));
+                }
+
+                // Subir fotos a Supabase Storage
+                const uploadedPhotos = [];
+                for (const fotoUrl of tempBase64Photos) {
+                    const finalUrl = await uploadBase64ToStorage(fotoUrl);
+                    uploadedPhotos.push(finalUrl);
+                }
+
+                const uploadedOriginals = [];
+                for (const origUrl of tempOriginalPhotos) {
+                    const finalUrl = await uploadBase64ToStorage(origUrl);
+                    uploadedOriginals.push(finalUrl);
+                }
+
+                const baseProductData = {
+                    nombre: document.getElementById('prod-nombre').value.trim(),
+                    descripcion: document.getElementById('prod-descripcion').value.trim(),
+                    mundo: document.getElementById('prod-mundo').value.trim().toUpperCase(),
+                    categoria: document.getElementById('prod-categoria').value.trim(),
+                    subcategoria: document.getElementById('prod-subcategoria').value.trim(),
+                    temporada: document.getElementById('prod-temporada').value.trim().toUpperCase(),
+                    precio_detal: parseFloat(document.getElementById('prod-precio-detal').value) || 0,
+                    precio_mayorista: parseFloat(document.getElementById('prod-precio-mayorista').value) || 0,
+                    cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,
+                    porcentaje_anticipo: parseFloat(document.getElementById('prod-porcentaje-anticipo').value) || 20,
+                    dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 0,
+                    personalizable: document.getElementById('chk-personalizable').checked,
+                    al_por_mayor: document.getElementById('chk-al-por-mayor').checked,
+                    venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
+                    alquiler: document.getElementById('chk-alquiler').checked,
+                    credito: document.getElementById('chk-credito').checked,
+                    precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
+                    valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
+                    tallas: tempTallas,
+                    colores: tempColores
+                };
+
+                const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';
+
                 if (editId) {
                     const singleData = {
                         ...baseProductData,
@@ -1471,13 +1450,10 @@
                             const otherPhotos = uploadedPhotos.filter((_, idx) => idx !== i);
                             const otherOrigs = uploadedOriginals.filter((_, idx) => idx !== i);
 
-                            const finalFotos = [currentPhoto, ...otherPhotos];
-                            const finalOrigs = [currentOrig, ...otherOrigs];
-
                             productsToInsert.push({
                                 ...baseProductData,
-                                fotos: finalFotos,
-                                fotos_originales: finalOrigs
+                                fotos: [currentPhoto, ...otherPhotos],
+                                fotos_originales: [currentOrig, ...otherOrigs]
                             });
                         }
                         const { error } = await supabaseClient.from('productos').insert(productsToInsert);
@@ -1492,26 +1468,32 @@
                         if (error) throw error;
                     }
                 }
+
+                closeProductModal();
+                fetchProductsData();
+                alert(editId ? '¡Producto actualizado exitosamente!' : '¡Producto(s) creado(s) exitosamente!');
+
             } catch (err) {
                 console.warn("Fallo en Supabase, guardando localmente:", err);
+                // Respaldo en localStorage en caso de falla de conexión
                 if (editId) {
                     const idx = allProducts.findIndex(p => p.id == editId);
                     if (idx >= 0) {
                         allProducts[idx] = {
                             ...baseProductData,
                             id: editId,
-                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
-                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : [defaultImage]
+                            fotos: tempBase64Photos.length > 0 ? tempBase64Photos : [defaultImage],
+                            fotos_originales: tempOriginalPhotos.length > 0 ? tempOriginalPhotos : [defaultImage]
                         };
                     }
                 } else {
-                    const photosCount = uploadedPhotos.length;
+                    const photosCount = tempBase64Photos.length;
                     if (photosCount > 1) {
                         for (let i = 0; i < photosCount; i++) {
-                            const currentPhoto = uploadedPhotos[i];
-                            const currentOrig = uploadedOriginals[i] || currentPhoto;
-                            const otherPhotos = uploadedPhotos.filter((_, idx) => idx !== i);
-                            const otherOrigs = uploadedOriginals.filter((_, idx) => idx !== i);
+                            const currentPhoto = tempBase64Photos[i];
+                            const currentOrig = tempOriginalPhotos[i] || currentPhoto;
+                            const otherPhotos = tempBase64Photos.filter((_, idx) => idx !== i);
+                            const otherOrigs = tempOriginalPhotos.filter((_, idx) => idx !== i);
 
                             allProducts.push({
                                 ...baseProductData,
@@ -1524,17 +1506,19 @@
                         allProducts.push({
                             ...baseProductData,
                             id: 'loc_' + Date.now(),
-                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
-                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : [defaultImage]
+                            fotos: tempBase64Photos.length > 0 ? tempBase64Photos : [defaultImage],
+                            fotos_originales: tempOriginalPhotos.length > 0 ? tempOriginalPhotos : [defaultImage]
                         });
                     }
                 }
                 localStorage.setItem('cupissa_local_products', JSON.stringify(allProducts));
+                closeProductModal();
+                fetchProductsData();
+                alert('Guardado en modo local debido a una falla en Supabase.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
             }
-
-            closeProductModal();
-            fetchProductsData();
-            alert(editId ? '¡Producto actualizado exitosamente!' : '¡Producto(s) creado(s) exitosamente!');
         }
 
         async function deleteProduct(prodId) {

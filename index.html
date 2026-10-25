@@ -492,16 +492,6 @@
                 <div class="border border-indigo-100 bg-indigo-50/20 rounded-2xl p-4 space-y-3">
                     <div class="flex items-center justify-between">
                         <span class="font-black text-indigo-900 uppercase">TALLAS DISPONIBLES & INCREMENTO</span>
-                        
-                        <div id="saved-tallas-template-wrapper" class="hidden flex items-center space-x-2">
-                            <button type="button" onclick="loadSavedTallasTemplate()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-[11px] shadow-sm flex items-center space-x-1 transition-all">
-                                <i class="fa-solid fa-clone text-[10px]"></i>
-                                <span>Usar Tallas Anteriores (<span id="saved-tallas-count">0</span>)</span>
-                            </button>
-                            <button type="button" onclick="clearSavedTallasTemplate()" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 font-bold rounded-full flex items-center justify-center text-xs transition-colors" title="Borrar plantilla guardada">
-                                ×
-                            </button>
-                        </div>
                     </div>
 
                     <div class="flex gap-2">
@@ -511,6 +501,12 @@
                     </div>
 
                     <div id="list-tallas-tags" class="flex flex-wrap gap-2 pt-1"></div>
+
+                    <!-- CONTENEDOR DE PLANTILLAS DE TALLAS GUARDADAS (ABAJO DE LA BARRA DE TALLAS) -->
+                    <div id="saved-tallas-templates-section" class="hidden pt-3 border-t border-indigo-100 space-y-2">
+                        <span class="text-[11px] font-bold text-indigo-800 uppercase block">Plantillas de tallas guardadas anteriores (Haz clic para cargar):</span>
+                        <div id="saved-tallas-templates-container" class="flex flex-wrap gap-2"></div>
+                    </div>
                 </div>
 
                 <div class="border border-pink-100 bg-pink-50/20 rounded-2xl p-4 space-y-3">
@@ -648,7 +644,6 @@
 
         async function fetchAdminData() {
             try {
-                // 1. Cargar clientes
                 const { data: clientes, error: cliError } = await supabaseClient.from('clientes').select('*');
                 if (cliError) throw cliError;
 
@@ -659,11 +654,9 @@
                     return;
                 }
 
-                // 2. Cargar créditos de la tabla creditos
                 const { data: creditos, error: credError } = await supabaseClient.from('creditos').select('*');
                 if (credError) console.warn("Error al cargar créditos:", credError);
 
-                // 3. Vincular los créditos por cliente usando comparación flexible de textos
                 allClients = clientes.map(cli => {
                     const cliCreditos = (creditos || []).filter(c => {
                         const clienteRef = c.cliente_id || c.clienteId || c.id_cliente;
@@ -754,7 +747,6 @@
             document.getElementById('modal-new-client').classList.add('hidden');
         }
 
-        // VALIDACIÓN ANTI-DUPLICADOS AL CREAR CLIENTE
         async function handleCreateNewClient(e) {
             e.preventDefault();
             const nombre = document.getElementById('new-client-name').value.trim();
@@ -1066,7 +1058,6 @@
             renderProductsTable();
         }
 
-        // FUNCIONES DE SUGERENCIA Y SELECCIÓN RÁPIDA (MUNDO, CATEGORÍA, SUBCATEGORÍA, TEMPORADA)
         function renderSugerenciasCampos() {
             const mundosSet = new Set();
             const categoriasSet = new Set();
@@ -1080,7 +1071,6 @@
                 if (p.temporada) temporadasSet.add(p.temporada.toUpperCase());
             });
 
-            // Renderizar mundos
             const sugMundo = document.getElementById('sugerencias-mundo');
             if (sugMundo) {
                 sugMundo.innerHTML = '';
@@ -1094,7 +1084,6 @@
                 });
             }
 
-            // Renderizar categorías
             const sugCat = document.getElementById('sugerencias-categoria');
             if (sugCat) {
                 sugCat.innerHTML = '';
@@ -1108,7 +1097,6 @@
                 });
             }
 
-            // Renderizar subcategorías
             const sugSubEl = document.getElementById('sugerencias-subcategoria');
             if (sugSubEl) {
                 sugSubEl.innerHTML = '';
@@ -1122,7 +1110,6 @@
                 });
             }
 
-            // Renderizar temporadas
             const sugTempEl = document.getElementById('sugerencias-temporada');
             if (sugTempEl) {
                 sugTempEl.innerHTML = '';
@@ -1137,37 +1124,77 @@
             }
         }
 
+        // ==================== GESTIÓN INTELIGENTE DE PLANTILLAS DE TALLAS ====================
         function checkTallasTemplateUI() {
-            const saved = JSON.parse(localStorage.getItem('cupissa_saved_tallas_template') || '[]');
-            const wrap = document.getElementById('saved-tallas-template-wrapper');
-            const countSpan = document.getElementById('saved-tallas-count');
+            const savedTemplates = JSON.parse(localStorage.getItem('cupissa_saved_tallas_templates') || '[]');
+            const section = document.getElementById('saved-tallas-templates-section');
+            const container = document.getElementById('saved-tallas-templates-container');
+            container.innerHTML = '';
 
-            if (saved && saved.length > 0) {
-                countSpan.innerText = saved.length;
-                wrap.classList.remove('hidden');
+            if (savedTemplates && savedTemplates.length > 0) {
+                section.classList.remove('hidden');
+                savedTemplates.forEach((template, index) => {
+                    if (!template || template.length === 0) return;
+                    const primeraTalla = template[0].nombre || '';
+                    const count = template.length;
+                    
+                    const btnWrapper = document.createElement('div');
+                    btnWrapper.className = "flex items-center bg-white border border-indigo-200 rounded-xl overflow-hidden shadow-sm hover:border-indigo-400 transition-all";
+                    
+                    const loadBtn = document.createElement('button');
+                    loadBtn.type = 'button';
+                    loadBtn.className = "px-3 py-1.5 text-xs font-bold text-indigo-900 flex items-center space-x-1.5 hover:bg-indigo-50";
+                    loadBtn.innerHTML = `<i class="fa-solid fa-clone text-[10px] text-indigo-600"></i><span>${primeraTalla}... (${count} tallas)</span>`;
+                    loadBtn.onclick = () => loadSpecificTallasTemplate(index);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.type = 'button';
+                    deleteBtn.className = "px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-colors border-l border-indigo-100";
+                    deleteBtn.title = "Eliminar esta plantilla de tallas";
+                    deleteBtn.innerHTML = "×";
+                    deleteBtn.onclick = () => deleteSpecificTallasTemplate(index);
+
+                    btnWrapper.appendChild(loadBtn);
+                    btnWrapper.appendChild(deleteBtn);
+                    container.appendChild(btnWrapper);
+                });
             } else {
-                wrap.classList.add('hidden');
+                section.classList.add('hidden');
             }
         }
 
-        function loadSavedTallasTemplate() {
-            const saved = JSON.parse(localStorage.getItem('cupissa_saved_tallas_template') || '[]');
-            if (!saved || saved.length === 0) return;
+        function saveCurrentTallasTemplate() {
+            if (!tempTallas || tempTallas.length === 0) return;
+            let savedTemplates = JSON.parse(localStorage.getItem('cupissa_saved_tallas_templates') || '[]');
+            
+            // Evitar duplicados exactos en el historial
+            const currentStr = JSON.stringify(tempTallas);
+            const exists = savedTemplates.some(t => JSON.stringify(t) === currentStr);
+            
+            if (!exists) {
+                savedTemplates.push([...tempTallas]);
+                localStorage.setItem('cupissa_saved_tallas_templates', JSON.stringify(savedTemplates));
+            }
+        }
 
-            saved.forEach(item => {
+        function loadSpecificTallasTemplate(index) {
+            const savedTemplates = JSON.parse(localStorage.getItem('cupissa_saved_tallas_templates') || '[]');
+            const template = savedTemplates[index];
+            if (!template) return;
+
+            template.forEach(item => {
                 if (!tempTallas.some(t => t.nombre.toUpperCase() === item.nombre.toUpperCase())) {
                     tempTallas.push({ nombre: item.nombre, incremento: item.incremento || 0 });
                 }
             });
-
             renderTallasTags();
         }
 
-        function clearSavedTallasTemplate() {
-            if (confirm('¿Deseas eliminar la plantilla de tallas guardada?')) {
-                localStorage.removeItem('cupissa_saved_tallas_template');
-                checkTallasTemplateUI();
-            }
+        function deleteSpecificTallasTemplate(index) {
+            let savedTemplates = JSON.parse(localStorage.getItem('cupissa_saved_tallas_templates') || '[]');
+            savedTemplates.splice(index, 1);
+            localStorage.setItem('cupissa_saved_tallas_templates', JSON.stringify(savedTemplates));
+            checkTallasTemplateUI();
         }
 
         function openProductModal() {
@@ -1460,7 +1487,7 @@
 
             try {
                 if (tempTallas.length > 0) {
-                    localStorage.setItem('cupissa_saved_tallas_template', JSON.stringify(tempTallas));
+                    saveCurrentTallasTemplate();
                 }
 
                 const uploadedPhotos = [];

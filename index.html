@@ -351,7 +351,7 @@
 
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-black uppercase text-slate-700">CRÉDITOS Y TABLA DE PAGOS:</h4>
+                    <h4 class="text-xs font-black uppercase text-slate-700">CRÉDITOS Y TABLA DE CUOTAS:</h4>
                     <button onclick="openAddDebtPrompt()" class="px-3 py-1.5 fuchsia-btn rounded-xl text-xs font-bold shadow-md flex items-center space-x-1">
                         <i class="fa-solid fa-plus-circle"></i>
                         <span>Agregar Otra Deuda</span>
@@ -645,11 +645,44 @@
         }
 
         async function fetchAdminData() {
-            const { data: clientes } = await supabaseClient.from('clientes').select('*, creditos(*)');
-            allClients = clientes || [];
-            filteredClients = [...allClients];
-            currentClientsPage = 1;
-            renderAdminTable();
+            try {
+                // 1. Cargar clientes
+                const { data: clientes, error: cliError } = await supabaseClient.from('clientes').select('*');
+                if (cliError) throw cliError;
+
+                if (!clientes || clientes.length === 0) {
+                    allClients = [];
+                    filteredClients = [];
+                    renderAdminTable();
+                    return;
+                }
+
+                // 2. Cargar créditos de la tabla creditos
+                const { data: creditos, error: credError } = await supabaseClient.from('creditos').select('*');
+                if (credError) console.warn("Error al cargar créditos:", credError);
+
+                // 3. Vincular los créditos por cliente usando comparación flexible de textos
+                allClients = clientes.map(cli => {
+                    const cliCreditos = (creditos || []).filter(c => {
+                        const clienteRef = c.cliente_id || c.clienteId || c.id_cliente;
+                        return clienteRef && String(clienteRef).trim() === String(cli.id).trim();
+                    });
+
+                    return {
+                        ...cli,
+                        creditos: cliCreditos
+                    };
+                });
+
+                filteredClients = [...allClients];
+                currentClientsPage = 1;
+                renderAdminTable();
+            } catch (err) {
+                console.error("Error al cargar los datos de administración:", err);
+                allClients = [];
+                filteredClients = [...allClients];
+                renderAdminTable();
+            }
         }
 
         function renderAdminTable() {
@@ -671,7 +704,7 @@
                 clientsToShow.forEach(client => {
                     const creditos = client.creditos || [];
                     const creditosActivos = creditos.filter(c => c.estado === 'ACTIVO');
-                    const deudaTotal = creditosActivos.reduce((acc, c) => acc + Number(c.deuda_actual || 0), 0);
+                    const deudaTotal = creditosActivos.reduce((acc, c) => acc + Number(c.deuda_actual || c.monto_total || 0), 0);
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
@@ -729,7 +762,7 @@
             const deudaInicial = parseFloat(document.getElementById('new-client-deuda').value) || 0;
             const fechaVencimiento = document.getElementById('new-client-fecha-inicio').value;
             const frecuencia = document.getElementById('new-client-frecuencia').value;
-            const cuotas = parseInt(document.getElementById('new-client-cuotas').value) || 1;
+            const cuotasTotal = parseInt(document.getElementById('new-client-cuotas').value) || 1;
 
             const { data: existingClient, error: checkError } = await supabaseClient
                 .from('clientes')
@@ -765,13 +798,14 @@
             }
 
             if (deudaInicial > 0) {
+                const valorCuotaCalculado = Math.ceil(deudaInicial / cuotasTotal);
                 await supabaseClient.from('creditos').insert([{
                     cliente_id: newClient.id,
                     monto_total: deudaInicial,
                     deuda_actual: deudaInicial,
                     frecuencia,
-                    numero_cuotas: cuotas,
-                    valor_cuota: Math.ceil(deudaInicial / cuotas),
+                    numero_cuotas: cuotasTotal,
+                    valor_cuota: valorCuotaCalculado,
                     proximo_vencimiento: fechaVencimiento,
                     estado: 'ACTIVO'
                 }]);
@@ -810,20 +844,28 @@
 
             creditos.forEach((cred, idx) => {
                 const totalCuotas = cred.numero_cuotas || 1;
-                const valorCuota = cred.valor_cuota || Math.ceil(cred.monto_total / totalCuotas);
+                const valorCuota = cred.valor_cuota || Math.ceil((cred.monto_total || 0) / totalCuotas);
                 const fechaBase = cred.proximo_vencimiento || new Date().toISOString().split('T')[0];
                 const frecuencia = cred.frecuencia || 'Quincenal';
+                const creditoEstado = cred.estado || 'ACTIVO';
 
                 let tablaCuotasHTML = '';
                 let fechaActualObj = new Date(fechaBase + 'T00:00:00');
 
                 for (let i = 1; i <= totalCuotas; i++) {
                     const fechaStr = fechaActualObj.toISOString().split('T')[0];
+                    const esPagado = creditoEstado === 'PAGADO';
+
                     tablaCuotasHTML += `
                         <tr class="border-b border-slate-100">
-                            <td class="py-1.5 px-2 font-bold fuchsia-text">Cuota #${i}</td>
-                            <td class="py-1.5 px-2 font-mono">${fechaStr}</td>
-                            <td class="py-1.5 px-2 font-bold">${formatCOP(valorCuota)}</td>
+                            <td class="py-2 px-2 font-bold fuchsia-text">Cuota #${i}</td>
+                            <td class="py-2 px-2 font-mono">${fechaStr}</td>
+                            <td class="py-2 px-2 font-bold">${formatCOP(valorCuota)}</td>
+                            <td class="py-2 px-2">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${esPagado ? 'bg-emerald-100 text-emerald-700' : 'bg-pink-100 fuchsia-text'}">
+                                    ${esPagado ? 'PAGADO' : 'PENDIENTE'}
+                                </span>
+                            </td>
                         </tr>
                     `;
 
@@ -842,35 +884,20 @@
                 card.className = "bg-white p-4 rounded-2xl border border-slate-200 space-y-3 text-xs";
                 card.innerHTML = `
                     <div class="flex justify-between items-center font-bold border-b border-slate-100 pb-2">
-                        <span>Deuda #${idx+1} (${formatCOP(cred.monto_total)}) - Estado: <strong class="${cred.estado === 'ACTIVO' ? 'text-pink-600' : 'text-emerald-600'}">${cred.estado}</strong></span>
-                        <span class="fuchsia-text">Saldo: ${formatCOP(cred.deuda_actual)}</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl">
-                        <div>
-                            <label class="block font-bold text-slate-500 uppercase mb-1">Fecha de Pago (Próxima):</label>
-                            <input type="date" id="input-fecha-${cred.id}" value="${cred.proximo_vencimiento || ''}" class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold">
-                        </div>
-                        <div>
-                            <label class="block font-bold text-slate-500 uppercase mb-1">Frecuencia:</label>
-                            <select id="input-frecuencia-${cred.id}" class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold">
-                                <option value="Quincenal" ${frecuencia === 'Quincenal' ? 'selected' : ''}>Quincenal</option>
-                                <option value="Semanal" ${frecuencia === 'Semanal' ? 'selected' : ''}>Semanal</option>
-                                <option value="Diario" ${frecuencia === 'Diario' ? 'selected' : ''}>Diario</option>
-                                <option value="Mensual" ${frecuencia === 'Mensual' ? 'selected' : ''}>Mensual</option>
-                            </select>
-                        </div>
+                        <span>Deuda #${idx+1} (${formatCOP(cred.monto_total)}) - Estado: <strong class="${creditoEstado === 'ACTIVO' ? 'text-pink-600' : 'text-emerald-600'}">${creditoEstado}</strong></span>
+                        <span class="fuchsia-text">Saldo: ${formatCOP(cred.deuda_actual || cred.monto_total)}</span>
                     </div>
 
                     <div class="space-y-1">
-                        <span class="font-bold text-slate-700 uppercase block text-[11px]">Proyección Tabla de Pagos (${totalCuotas} Cuotas):</span>
-                        <div class="max-h-36 overflow-y-auto custom-scrollbar border border-slate-100 rounded-xl p-2 bg-slate-50/50">
+                        <span class="font-bold text-slate-700 uppercase block text-[11px]">Tabla de Cuotas Proyectadas (${totalCuotas} Cuotas - ${frecuencia}):</span>
+                        <div class="max-h-48 overflow-y-auto custom-scrollbar border border-slate-100 rounded-xl p-2 bg-slate-50/50">
                             <table class="w-full text-left text-[11px]">
                                 <thead>
                                     <tr class="text-slate-400 border-b border-slate-200">
-                                        <th class="p-1">CUOTA</th>
-                                        <th class="p-1">FECHA</th>
-                                        <th class="p-1">VALOR</th>
+                                        <th class="p-1.5">CUOTA</th>
+                                        <th class="p-1.5">VENCIMIENTO</th>
+                                        <th class="p-1.5">VALOR</th>
+                                        <th class="p-1.5">ESTADO</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -881,41 +908,19 @@
                     </div>
 
                     <div class="flex justify-between items-center pt-2">
-                        <button onclick="actualizarFechaFrecuenciaDeuda('${cred.id}')" class="px-3 py-1.5 fuchsia-btn rounded-lg font-bold text-xs">Actualizar Fecha y Frecuencia</button>
-                        ${cred.estado === 'ACTIVO' ? `<button onclick="marcarDeudaComoPaga('${cred.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold">Marcar como Paga ✓</button>` : ''}
+                        <span class="text-[11px] text-slate-400 font-medium">Frecuencia: ${frecuencia} | Inicio: ${fechaBase}</span>
+                        ${creditoEstado === 'ACTIVO' ? `<button onclick="marcarDeudaComoPaga('${cred.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold">Marcar como Paga ✓</button>` : ''}
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        async function actualizarFechaFrecuenciaDeuda(creditoId) {
-            const nuevaFecha = document.getElementById(`input-fecha-${creditoId}`).value;
-            const nuevaFrecuencia = document.getElementById(`input-frecuencia-${creditoId}`).value;
-
-            if (!nuevaFecha) {
-                alert('Por favor selecciona una fecha válida.');
-                return;
-            }
-
-            const { error } = await supabaseClient
-                .from('creditos')
-                .update({ proximo_vencimiento: nuevaFecha, frecuencia: nuevaFrecuencia })
-                .eq('id', creditoId);
-
-            if (error) {
-                alert('Error al actualizar: ' + error.message);
-                return;
-            }
-
-            alert('¡Fecha y frecuencia actualizadas con éxito!');
-            fetchAdminData();
-            closeEditModal();
-        }
-
         async function marcarDeudaComoPaga(creditoId) {
-            if (!confirm('¿Estás seguro de marcar esta cuota/deuda como PAGA?')) return;
+            if (!confirm('¿Estás seguro de marcar esta deuda como PAGA?')) return;
+            
             await supabaseClient.from('creditos').update({ estado: 'PAGADO', deuda_actual: 0 }).eq('id', creditoId);
+            
             fetchAdminData();
             closeEditModal();
             alert('¡Deuda marcada como pagada con éxito!');
@@ -950,21 +955,25 @@
             const clientId = document.getElementById('edit-client-id').value;
             const monto = parseFloat(prompt('Monto de la nueva deuda ($):'));
             if (!monto) return;
-            const cuotas = parseInt(prompt('Número de cuotas:', '4')) || 4;
+            const cuotasTotal = parseInt(prompt('Número de cuotas:', '4')) || 4;
             const fechaVenc = prompt('Fecha de vencimiento (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+            const frecuencia = prompt('Frecuencia (Quincenal, Semanal, Diario, Mensual):', 'Quincenal') || 'Quincenal';
 
+            const valorCuotaCalculado = Math.ceil(monto / cuotasTotal);
             await supabaseClient.from('creditos').insert([{
                 cliente_id: clientId,
                 monto_total: monto,
                 deuda_actual: monto,
-                frecuencia: 'Quincenal',
-                numero_cuotas: cuotas,
-                valor_cuota: Math.ceil(monto / cuotas),
+                frecuencia: frecuencia,
+                numero_cuotas: cuotasTotal,
+                valor_cuota: valorCuotaCalculado,
                 proximo_vencimiento: fechaVenc,
                 estado: 'ACTIVO'
             }]);
+
             fetchAdminData();
             closeEditModal();
+            alert('¡Nueva deuda agregada exitosamente!');
         }
 
         // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
@@ -1096,16 +1105,17 @@
             }
 
             // Renderizar subcategorías
-            const sugSub = document.getElementById('sugerencias-subcategoria');
-            if (sugSub) {
-                sugSub.innerHTML = '';
+            const sugSub = document.getElementById('sugerencias-subcategoría');
+            const sugSubEl = document.getElementById('sugerencias-subcategoria');
+            if (sugSubEl) {
+                sugSubEl.innerHTML = '';
                 subcategoriasSet.forEach(sub => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-200 transition-colors';
                     btn.innerText = sub;
                     btn.onclick = () => { document.getElementById('prod-subcategoria').value = sub; };
-                    sugSub.appendChild(btn);
+                    sugSubEl.appendChild(btn);
                 });
             }
         }
@@ -1163,7 +1173,6 @@
             document.getElementById('prod-porcentaje-anticipo').value = '20';
             document.getElementById('prod-dias-preparacion').value = '3';
             
-            // CONFIGURACIÓN DE SWITCHES SOLICITADA
             document.getElementById('chk-personalizable').checked = false;
             document.getElementById('chk-al-por-mayor').checked = false;
             document.getElementById('chk-venta').checked = true;

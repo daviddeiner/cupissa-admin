@@ -399,6 +399,8 @@
                     <div>
                         <label class="block font-bold text-slate-700 uppercase mb-1">Mundo *</label>
                         <input type="text" id="prod-mundo" required placeholder="EJ: EVENTOS, FAMILIAR, B2B, TEXTIL..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium uppercase">
+                        <!-- SUGERENCIAS DINÁMICAS MUNDO -->
+                        <div id="sugerencias-mundo" class="flex flex-wrap gap-1.5 mt-1.5"></div>
                     </div>
                 </div>
 
@@ -411,10 +413,14 @@
                     <div>
                         <label class="block font-bold text-slate-700 uppercase mb-1">Categoría *</label>
                         <input type="text" id="prod-categoria" required placeholder="Ej: Vestuario, Mobiliario..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                        <!-- SUGERENCIAS DINÁMICAS CATEGORÍA -->
+                        <div id="sugerencias-categoria" class="flex flex-wrap gap-1.5 mt-1.5"></div>
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 uppercase mb-1">Subcategoría</label>
                         <input type="text" id="prod-subcategoria" placeholder="Ej: Vestidos Gala, Sillas..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium">
+                        <!-- SUGERENCIAS DINÁMICAS SUBCATEGORÍA -->
+                        <div id="sugerencias-subcategoria" class="flex flex-wrap gap-1.5 mt-1.5"></div>
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 uppercase mb-1">Temporada *</label>
@@ -443,7 +449,7 @@
 
                 <div class="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 space-y-1">
                     <label class="block font-bold text-indigo-900 uppercase">Días de preparación / fabricación</label>
-                    <input type="number" id="prod-dias-preparacion" value="0" class="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 font-bold">
+                    <input type="number" id="prod-dias-preparacion" value="3" class="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 font-bold">
                 </div>
 
                 <div class="bg-pink-50/40 border border-pink-100 p-4 rounded-2xl flex flex-wrap gap-4 items-center justify-between font-bold text-slate-700">
@@ -452,7 +458,7 @@
                         <span>Personalizable</span>
                     </label>
                     <label class="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" id="chk-al-por-mayor" checked class="accent-pink-600 w-4 h-4">
+                        <input type="checkbox" id="chk-al-por-mayor" class="accent-pink-600 w-4 h-4">
                         <span>Al por Mayor</span>
                     </label>
                     <label class="flex items-center space-x-2 cursor-pointer">
@@ -635,7 +641,7 @@
 
         function handleAdminLogout() {
             localStorage.removeItem('cupissa_admin_logged');
-            document.getElementById('admin-login-screen').classList.remove('hidden');
+            document.getElementById('admin-login-screen').classList.add('hidden');
         }
 
         async function fetchAdminData() {
@@ -989,6 +995,7 @@
             filteredProducts = [...allProducts];
             currentProductsPage = 1;
             renderProductsTable();
+            renderSugerenciasCampos();
         }
 
         function renderProductsTable() {
@@ -1048,6 +1055,61 @@
             renderProductsTable();
         }
 
+        // FUNCIONES DE SUGERENCIA Y SELECCIÓN RÁPIDA (MUNDO, CATEGORÍA, SUBCATEGORÍA)
+        function renderSugerenciasCampos() {
+            const mundosSet = new Set();
+            const categoriasSet = new Set();
+            const subcategoriasSet = new Set();
+
+            allProducts.forEach(p => {
+                if (p.mundo) mundosSet.add(p.mundo.toUpperCase());
+                if (p.categoria) categoriasSet.add(p.categoria);
+                if (p.subcategoria) subcategoriasSet.add(p.subcategoria);
+            });
+
+            // Renderizar mundos
+            const sugMundo = document.getElementById('sugerencias-mundo');
+            if (sugMundo) {
+                sugMundo.innerHTML = '';
+                mundosSet.forEach(mundo => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-2.5 py-1 bg-pink-50 hover:bg-pink-100 fuchsia-text rounded-lg text-[11px] font-bold border border-pink-200 transition-colors';
+                    btn.innerText = mundo;
+                    btn.onclick = () => { document.getElementById('prod-mundo').value = mundo; };
+                    sugMundo.appendChild(btn);
+                });
+            }
+
+            // Renderizar categorías
+            const sugCat = document.getElementById('sugerencias-categoria');
+            if (sugCat) {
+                sugCat.innerHTML = '';
+                categoriasSet.forEach(cat => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold border border-indigo-200 transition-colors';
+                    btn.innerText = cat;
+                    btn.onclick = () => { document.getElementById('prod-categoria').value = cat; };
+                    sugCat.appendChild(btn);
+                });
+            }
+
+            // Renderizar subcategorías
+            const sugSub = document.getElementById('sugerencias-subcategoria');
+            if (sugSub) {
+                sugSub.innerHTML = '';
+                subcategoriasSet.forEach(sub => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-200 transition-colors';
+                    btn.innerText = sub;
+                    btn.onclick = () => { document.getElementById('prod-subcategoria').value = sub; };
+                    sugSub.appendChild(btn);
+                });
+            }
+        }
+
         function checkTallasTemplateUI() {
             const saved = JSON.parse(localStorage.getItem('cupissa_saved_tallas_template') || '[]');
             const wrap = document.getElementById('saved-tallas-template-wrapper');
@@ -1099,12 +1161,15 @@
             document.getElementById('prod-precio-mayorista').value = '0';
             document.getElementById('prod-cant-min-mayorista').value = '6';
             document.getElementById('prod-porcentaje-anticipo').value = '20';
-            document.getElementById('prod-dias-preparacion').value = '0';
+            document.getElementById('prod-dias-preparacion').value = '3';
+            
+            // CONFIGURACIÓN DE SWITCHES SOLICITADA
             document.getElementById('chk-personalizable').checked = false;
-            document.getElementById('chk-al-por-mayor').checked = true;
+            document.getElementById('chk-al-por-mayor').checked = false;
             document.getElementById('chk-venta').checked = true;
             document.getElementById('chk-alquiler').checked = false;
             document.getElementById('chk-credito').checked = false;
+
             document.getElementById('prod-precio-alquiler').value = '0';
             document.getElementById('prod-valor-deposito').value = '0';
             toggleAlquilerFields();
@@ -1112,6 +1177,7 @@
             renderTallasTags();
             renderColoresTags();
             renderPreviewPhotos();
+            renderSugerenciasCampos();
             document.getElementById('prod-files-input').value = '';
             document.getElementById('modal-product-form').classList.remove('hidden');
         }
@@ -1133,7 +1199,7 @@
             document.getElementById('prod-precio-mayorista').value = prod.precio_mayorista || 0;
             document.getElementById('prod-cant-min-mayorista').value = prod.cant_min_mayorista || 6;
             document.getElementById('prod-porcentaje-anticipo').value = prod.porcentaje_anticipo || 20;
-            document.getElementById('prod-dias-preparacion').value = prod.dias_preparacion || 0;
+            document.getElementById('prod-dias-preparacion').value = prod.dias_preparacion || 3;
 
             document.getElementById('chk-personalizable').checked = !!prod.personalizable;
             document.getElementById('chk-al-por-mayor').checked = !!prod.al_por_mayor;
@@ -1155,6 +1221,7 @@
             renderTallasTags();
             renderColoresTags();
             renderPreviewPhotos();
+            renderSugerenciasCampos();
             document.getElementById('prod-files-input').value = '';
             document.getElementById('modal-product-form').classList.remove('hidden');
         }
@@ -1185,8 +1252,8 @@
             container.innerHTML = '';
             tempTallas.forEach((t, i) => {
                 const tag = document.createElement('span');
-                tag.className = "bg-indigo-100 text-indigo-800 font-bold px-2 py-1 rounded-xl text-[11px] flex items-center space-x-1";
-                tag.innerHTML = `<span>${t.nombre} (+${formatCOP(t.incremento)})</span><button type="button" onclick="tempTallas.splice(${i},1);renderTallasTags()" class="ml-1 text-red-500 hover:text-red-700 font-bold">×</button>`;
+                tag.className = "bg-indigo-100 text-indigo-800 font-bold px-2.5 py-1 rounded-xl text-[11px] flex items-center space-x-1.5 shadow-sm";
+                tag.innerHTML = `<span>${t.nombre} (+${formatCOP(t.incremento)})</span><button type="button" onclick="tempTallas.splice(${i},1);renderTallasTags()" class="ml-1 text-red-500 hover:text-red-700 font-bold text-sm">×</button>`;
                 container.appendChild(tag);
             });
         }
@@ -1356,43 +1423,20 @@
             return new Blob([u8arr], {type:mime});
         }
 
-        async function getImageHash(imgUrlOrBase64) {
-            try {
-                let base64String = imgUrlOrBase64;
-                if (!imgUrlOrBase64.startsWith('data:')) {
-                    const response = await fetch(imgUrlOrBase64);
-                    const blob = await response.blob();
-                    base64String = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result);
-                        reader.readAsDataURL(blob);
-                    });
-                }
-                const rawData = base64String.split(',')[1] || base64String;
-                return CryptoJS.SHA256(rawData).toString();
-            } catch (e) {
-                console.error("Error calculando hash de imagen:", e);
-                return null;
-            }
-        }
-
         async function handleSaveProduct(e) {
             e.preventDefault();
             const editId = document.getElementById('prod-edit-id').value;
             
-            // Estado de carga en el botón
             const submitBtn = e.target.querySelector('button[type="submit"]');
             const originalBtnHTML = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Guardando...</span>`;
 
             try {
-                // Plantilla de tallas
                 if (tempTallas.length > 0) {
                     localStorage.setItem('cupissa_saved_tallas_template', JSON.stringify(tempTallas));
                 }
 
-                // Subir fotos a Supabase Storage
                 const uploadedPhotos = [];
                 for (const fotoUrl of tempBase64Photos) {
                     const finalUrl = await uploadBase64ToStorage(fotoUrl);
@@ -1416,7 +1460,7 @@
                     precio_mayorista: parseFloat(document.getElementById('prod-precio-mayorista').value) || 0,
                     cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,
                     porcentaje_anticipo: parseFloat(document.getElementById('prod-porcentaje-anticipo').value) || 20,
-                    dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 0,
+                    dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 3,
                     personalizable: document.getElementById('chk-personalizable').checked,
                     al_por_mayor: document.getElementById('chk-al-por-mayor').checked,
                     venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
@@ -1475,7 +1519,6 @@
 
             } catch (err) {
                 console.warn("Fallo en Supabase, guardando localmente:", err);
-                // Respaldo en localStorage en caso de falla de conexión
                 if (editId) {
                     const idx = allProducts.findIndex(p => p.id == editId);
                     if (idx >= 0) {

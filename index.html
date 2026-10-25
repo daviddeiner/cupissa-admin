@@ -425,6 +425,8 @@
                     <div>
                         <label class="block font-bold text-slate-700 uppercase mb-1">Temporada *</label>
                         <input type="text" id="prod-temporada" required placeholder="EJ: NAVIDAD, MADRES, HALLOWEEN..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium uppercase">
+                        <!-- SUGERENCIAS DINÁMICAS TEMPORADA -->
+                        <div id="sugerencias-temporada" class="flex flex-wrap gap-1.5 mt-1.5"></div>
                     </div>
                 </div>
 
@@ -1064,16 +1066,18 @@
             renderProductsTable();
         }
 
-        // FUNCIONES DE SUGERENCIA Y SELECCIÓN RÁPIDA (MUNDO, CATEGORÍA, SUBCATEGORÍA)
+        // FUNCIONES DE SUGERENCIA Y SELECCIÓN RÁPIDA (MUNDO, CATEGORÍA, SUBCATEGORÍA, TEMPORADA)
         function renderSugerenciasCampos() {
             const mundosSet = new Set();
             const categoriasSet = new Set();
             const subcategoriasSet = new Set();
+            const temporadasSet = new Set();
 
             allProducts.forEach(p => {
                 if (p.mundo) mundosSet.add(p.mundo.toUpperCase());
                 if (p.categoria) categoriasSet.add(p.categoria);
                 if (p.subcategoria) subcategoriasSet.add(p.subcategoria);
+                if (p.temporada) temporadasSet.add(p.temporada.toUpperCase());
             });
 
             // Renderizar mundos
@@ -1105,7 +1109,6 @@
             }
 
             // Renderizar subcategorías
-            const sugSub = document.getElementById('sugerencias-subcategoría');
             const sugSubEl = document.getElementById('sugerencias-subcategoria');
             if (sugSubEl) {
                 sugSubEl.innerHTML = '';
@@ -1116,6 +1119,20 @@
                     btn.innerText = sub;
                     btn.onclick = () => { document.getElementById('prod-subcategoria').value = sub; };
                     sugSubEl.appendChild(btn);
+                });
+            }
+
+            // Renderizar temporadas
+            const sugTempEl = document.getElementById('sugerencias-temporada');
+            if (sugTempEl) {
+                sugTempEl.innerHTML = '';
+                temporadasSet.forEach(temp => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-[11px] font-bold border border-purple-200 transition-colors';
+                    btn.innerText = temp;
+                    btn.onclick = () => { document.getElementById('prod-temporada').value = temp; };
+                    sugTempEl.appendChild(btn);
                 });
             }
         }

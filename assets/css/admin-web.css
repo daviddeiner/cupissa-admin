@@ -1,0 +1,21 @@
+#tab-section-web-clientes, #tab-section-web-pedidos { animation: adminWebFade .18s ease-out; }
+@keyframes adminWebFade { from { opacity:.45; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+.admin-web-active { background:#fdf2f8 !important; color:#be185d !important; border:1px solid #fbcfe8 !important; }
+.admin-web-table-cell { padding:13px 16px; vertical-align:middle; color:#334155; }
+.admin-web-status { min-width:195px; max-width:230px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; font-size:10px; font-weight:800; color:#334155; }
+.admin-web-button { padding:8px 11px; border-radius:10px; background:#fce7f3; color:#be185d; font-size:10px; font-weight:900; white-space:nowrap; }
+.admin-web-modal { position:fixed; inset:0; z-index:70; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(15,23,42,.62); backdrop-filter:blur(4px); }
+.admin-web-modal.hidden { display:none !important; }
+.admin-web-modal-card { width:min(100%,850px); max-height:94vh; display:flex; flex-direction:column; overflow:hidden; border-radius:22px; background:#fff; box-shadow:0 22px 80px rgba(15,23,42,.35); }
+.admin-web-modal-content { overflow:auto; padding:18px; }
+.admin-web-label { display:block; margin-bottom:6px; color:#475569; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+.admin-web-input { width:100%; padding:10px 11px; min-height:40px; border:1px solid #e2e8f0; border-radius:10px; outline:none; font-size:12px; font-weight:600; }
+.admin-web-input:focus { border-color:#ec4899; box-shadow:0 0 0 3px #fce7f3; }
+.admin-web-product-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 34px; gap:7px; padding:10px; border:1px solid #f1f5f9; border-radius:13px; background:#fcfcfd; }
+.admin-web-order-image { width:66px; height:66px; object-fit:cover; border-radius:10px; background:#f1f5f9; }
+@media (max-width:800px) { .admin-web-product-row { grid-template-columns:1fr 1fr; } .admin-web-product-row .wide { grid-column:1/-1; } .admin-web-modal { padding:0; } .admin-web-modal-card { width:100%; height:100%; max-height:100%; border-radius:0; } .admin-web-modal-content { padding:13px; } }
+@media (max-width:639px) {
+  header nav { flex-wrap:wrap; }
+  .sm\:hidden.bg-white.border-b { gap:5px; }
+  .sm\:hidden.bg-white.border-b button { font-size:9px; padding-left:3px; padding-right:3px; }
+}

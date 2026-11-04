@@ -526,6 +526,121 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             currentProductsPage = 1;
             renderProductsTable();
             renderSugerenciasCampos();
+            await loadFeaturedSeasonAdmin();
+        }
+
+        // Selector GLOBAL de temporada destacada. Lee siempre productos.temporada
+        // desde Supabase; no depende de las sugerencias locales del formulario.
+        async function loadFeaturedSeasonAdmin() {
+            const select = document.getElementById('featured-season-admin-select');
+            const status = document.getElementById('featured-season-admin-status');
+            const current = document.getElementById('featured-season-admin-current');
+            const saveButton = document.getElementById('featured-season-save-button');
+            if (!select || !status) return;
+
+            select.disabled = true;
+            if (saveButton) saveButton.disabled = true;
+            select.innerHTML = '<option value="">Cargando temporadas desde productos...</option>';
+            status.textContent = 'Consultando los valores existentes de productos.temporada...';
+
+            try {
+                const rows = [];
+                const pageSize = 1000;
+                let from = 0;
+                while (true) {
+                    const { data, error } = await supabaseClient
+                        .from('productos')
+                        .select('temporada')
+                        .not('temporada', 'is', null)
+                        .order('temporada', { ascending: true })
+                        .range(from, from + pageSize - 1);
+                    if (error) throw error;
+                    rows.push(...(data || []));
+                    if (!data || data.length < pageSize) break;
+                    from += pageSize;
+                }
+
+                const seasons = [...new Set(rows
+                    .map(row => String(row.temporada || '').trim().toUpperCase())
+                    .filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, 'es'));
+
+                const { data: setting, error: settingError } = await supabaseClient
+                    .from('configuracion_destacados_web')
+                    .select('temporada_destacada')
+                    .eq('id', 1)
+                    .maybeSingle();
+                if (settingError) throw settingError;
+
+                const selected = String(setting?.temporada_destacada || '').trim().toUpperCase();
+                select.innerHTML = '';
+
+                const noneOption = document.createElement('option');
+                noneOption.value = '';
+                noneOption.textContent = 'NO MOSTRAR DESTACADOS';
+                select.appendChild(noneOption);
+
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season;
+                    option.textContent = season;
+                    select.appendChild(option);
+                });
+
+                select.value = seasons.includes(selected) ? selected : '';
+                select.disabled = seasons.length === 0;
+                if (saveButton) saveButton.disabled = seasons.length === 0 && !selected;
+
+                if (current) {
+                    current.textContent = selected && seasons.includes(selected)
+                        ? `ACTIVA: ${selected}`
+                        : 'SIN TEMPORADA ACTIVA';
+                }
+
+                status.textContent = seasons.length
+                    ? `${seasons.length} temporada(s) encontrada(s) directamente en productos.temporada. Selecciona una y pulsa “Guardar selección”.`
+                    : 'No hay temporadas escritas en la columna productos.temporada.';
+            } catch (error) {
+                console.error('No fue posible cargar las temporadas destacadas:', error);
+                select.innerHTML = '<option value="">No se pudieron cargar las temporadas</option>';
+                select.disabled = true;
+                if (saveButton) saveButton.disabled = true;
+                if (current) current.textContent = 'REVISAR CONFIGURACIÓN';
+                status.textContent = `No se pudo leer la temporada destacada. Ejecuta el SQL de configuración y verifica el acceso a productos.temporada. ${error?.message || ''}`;
+            }
+        }
+
+        async function saveFeaturedSeasonFromAdmin() {
+            const select = document.getElementById('featured-season-admin-select');
+            const status = document.getElementById('featured-season-admin-status');
+            const current = document.getElementById('featured-season-admin-current');
+            const saveButton = document.getElementById('featured-season-save-button');
+            if (!select || !status || !saveButton) return;
+
+            const season = String(select.value || '').trim().toUpperCase();
+            saveButton.disabled = true;
+            status.textContent = 'Guardando la temporada destacada...';
+
+            try {
+                const { error } = await supabaseClient
+                    .from('configuracion_destacados_web')
+                    .upsert({
+                        id: 1,
+                        temporada_destacada: season || null,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'id' });
+                if (error) throw error;
+
+                if (current) current.textContent = season ? `ACTIVA: ${season}` : 'SIN TEMPORADA ACTIVA';
+                status.textContent = season
+                    ? `Guardado. La página de clientes mostrará cinco productos de ${season} en DESTACADOS DE LA TEMPORADA.`
+                    : 'Guardado. Los destacados de temporada quedaron desactivados.';
+            } catch (error) {
+                console.error('No fue posible guardar la temporada destacada:', error);
+                status.textContent = `No se pudo guardar la selección. ${error?.message || ''}`;
+            } finally {
+                saveButton.disabled = false;
+            }
         }
 
         function renderProductsTable() {
@@ -590,12 +705,20 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             const categoriasSet = new Set();
             const subcategoriasSet = new Set();
             const temporadasSet = new Set();
+            let seasonProducts = Array.isArray(allProducts) ? [...allProducts] : [];
+            try {
+                const cachedProducts = JSON.parse(localStorage.getItem('cupissa_cache_products') || '[]');
+                if (Array.isArray(cachedProducts)) seasonProducts = [...seasonProducts, ...cachedProducts];
+            } catch (_) {}
 
             allProducts.forEach(p => {
-                if (p.mundo) mundosSet.add(p.mundo.toUpperCase());
+                if (p.mundo) mundosSet.add(String(p.mundo).trim().toUpperCase());
                 if (p.categoria) categoriasSet.add(p.categoria);
                 if (p.subcategoria) subcategoriasSet.add(p.subcategoria);
-                if (p.temporada) temporadasSet.add(p.temporada.toUpperCase());
+            });
+            seasonProducts.forEach(p => {
+                const season = String(p?.temporada || '').trim().toUpperCase();
+                if (season) temporadasSet.add(season);
             });
 
             const sugMundo = document.getElementById('sugerencias-mundo');
@@ -635,6 +758,33 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     btn.onclick = () => { document.getElementById('prod-subcategoria').value = sub; };
                     sugSubEl.appendChild(btn);
                 });
+            }
+
+            const tempSelect = document.getElementById('prod-temporada-existente');
+            const seasonNames = [...temporadasSet].sort((a, b) => a.localeCompare(b, 'es'));
+            const seasonCount = document.getElementById('temporada-count-label');
+            if (seasonCount) seasonCount.textContent = seasonNames.length
+                ? `${seasonNames.length} temporada(s) encontrada(s) en el catálogo de productos.`
+                : 'Todavía no hay temporadas registradas en los productos existentes.';
+            if (tempSelect) {
+                const currentValue = document.getElementById('prod-temporada')?.value?.trim().toUpperCase() || '';
+                tempSelect.innerHTML = '<option value="">ELIGE UNA TEMPORADA EXISTENTE</option>';
+                if (!seasonNames.length) {
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = 'No hay temporadas guardadas todavía';
+                    emptyOption.disabled = true;
+                    tempSelect.appendChild(emptyOption);
+                }
+                seasonNames.forEach(temp => {
+                    const option = document.createElement('option');
+                    option.value = temp;
+                    option.textContent = temp;
+                    tempSelect.appendChild(option);
+                });
+                tempSelect.value = seasonNames.includes(currentValue) ? currentValue : '';
+                tempSelect.style.display = 'block';
+                tempSelect.classList.add('w-full', 'min-h-[44px]');
             }
 
             const sugTempEl = document.getElementById('sugerencias-temporada');

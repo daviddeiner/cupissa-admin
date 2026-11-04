@@ -139,6 +139,19 @@
                 });
             }
 
+            const tempSelect = document.getElementById('prod-temporada-existente');
+            if (tempSelect) {
+                const currentValue = document.getElementById('prod-temporada')?.value?.trim().toUpperCase() || '';
+                tempSelect.innerHTML = '<option value="">Selecciona una temporada existente</option>';
+                [...temporadasSet].sort().forEach(temp => {
+                    const option = document.createElement('option');
+                    option.value = temp;
+                    option.textContent = temp;
+                    tempSelect.appendChild(option);
+                });
+                tempSelect.value = [...temporadasSet].includes(currentValue) ? currentValue : '';
+            }
+
             const sugTempEl = document.getElementById('sugerencias-temporada');
             if (sugTempEl) {
                 sugTempEl.innerHTML = '';

@@ -19,3 +19,5 @@
   .sm\:hidden.bg-white.border-b { gap:5px; }
   .sm\:hidden.bg-white.border-b button { font-size:9px; padding-left:3px; padding-right:3px; }
 }
+.admin-web-delete { width:32px; height:32px; flex:0 0 32px; display:inline-grid; place-items:center; border-radius:9px; background:#fff1f2; color:#e11d48; font-size:11px; transition:background .15s ease,color .15s ease; }
+.admin-web-delete:hover { background:#e11d48; color:#fff; }

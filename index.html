@@ -574,6 +574,23 @@
                     <div id="list-colores-tags" class="flex flex-wrap gap-2 pt-1"></div>
                 </div>
 
+                <div class="border border-emerald-100 bg-emerald-50/30 rounded-2xl p-4 space-y-3">
+                    <span class="font-black text-emerald-800 uppercase">ACCESORIOS DISPONIBLES: FOTO E INCREMENTO</span>
+                    <p class="text-[11px] text-slate-500">Registra cada accesorio con su nombre, fotografía y valor adicional. El cliente podrá ver la foto y elegirlo antes de confirmar el precio total.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="text" id="inp-accesorio-nombre" placeholder="Nombre: Moño, diadema, bolsa..." class="min-w-0 bg-white border rounded-xl px-3 py-2">
+                        <input type="number" id="inp-accesorio-incremento" min="0" step="100" placeholder="Incremento $" class="w-full bg-white border rounded-xl px-3 py-2">
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <label class="flex-1 block text-xs font-bold text-emerald-900">Foto del accesorio
+                            <input type="file" id="inp-accesorio-foto" accept="image/*" onchange="handleAccesorioFotoSelected(event)" class="mt-1 w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:font-bold file:bg-emerald-100 file:text-emerald-800">
+                        </label>
+                        <div id="accesorio-foto-preview" class="hidden"></div>
+                        <button type="button" onclick="addAccesorioToList()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">+ Agregar accesorio</button>
+                    </div>
+                    <div id="list-accesorios-tags" class="flex flex-wrap gap-2 pt-1"></div>
+                </div>
+
                 <div class="border border-slate-200 rounded-2xl p-4 space-y-3 bg-white">
                     <label class="block font-bold text-slate-700 uppercase">Fotos del Producto (Cada foto generará un producto independiente)</label>
                     <input type="file" id="prod-files-input" multiple accept="image/*" onchange="handleImageFilesSelected(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-pink-50 file:text-pink-600 hover:file:bg-pink-100">

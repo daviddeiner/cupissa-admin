@@ -14,6 +14,8 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
 
         let tempTallas = [];
         let tempColores = [];
+        let tempAccesorios = [];
+        let tempAccesorioFoto = '';
         let tempBase64Photos = [];
         let tempOriginalPhotos = [];
 
@@ -878,6 +880,8 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             document.getElementById('product-modal-title').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i><span>Configuración Inteligente de Producto Web</span>`;
             tempTallas = [];
             tempColores = [];
+            tempAccesorios = [];
+            tempAccesorioFoto = '';
             tempBase64Photos = [];
             tempOriginalPhotos = [];
             pendingImageQueue = [];
@@ -905,8 +909,11 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             checkTallasTemplateUI();
             renderTallasTags();
             renderColoresTags();
+            renderAccesoriosTags();
+            renderAccesorioFotoPreview();
             renderPreviewPhotos();
             renderSugerenciasCampos();
+            document.getElementById('inp-accesorio-foto').value = '';
             document.getElementById('prod-files-input').value = '';
             document.getElementById('modal-product-form').classList.remove('hidden');
         }
@@ -942,6 +949,8 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
 
             tempTallas = prod.tallas ? [...prod.tallas] : [];
             tempColores = prod.colores ? [...prod.colores] : [];
+            tempAccesorios = Array.isArray(prod.accesorios) ? prod.accesorios.map(item => ({ ...item })) : [];
+            tempAccesorioFoto = '';
             tempBase64Photos = prod.fotos ? [...prod.fotos] : [];
             tempOriginalPhotos = prod.fotos_originales ? [...prod.fotos_originales] : [...tempBase64Photos];
             pendingImageQueue = [];
@@ -949,8 +958,11 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             checkTallasTemplateUI();
             renderTallasTags();
             renderColoresTags();
+            renderAccesoriosTags();
+            renderAccesorioFotoPreview();
             renderPreviewPhotos();
             renderSugerenciasCampos();
+            document.getElementById('inp-accesorio-foto').value = '';
             document.getElementById('prod-files-input').value = '';
             document.getElementById('modal-product-form').classList.remove('hidden');
         }
@@ -1004,6 +1016,139 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 const tag = document.createElement('span');
                 tag.className = "bg-pink-100 fuchsia-text font-bold px-2 py-1 rounded-xl text-[11px] flex items-center space-x-1";
                 tag.innerHTML = `<span>${c.nombre} (+${formatCOP(c.incremento)})</span><button type="button" onclick="tempColores.splice(${i},1);renderColoresTags()" class="ml-1 text-red-500 hover:text-red-700 font-bold">×</button>`;
+                container.appendChild(tag);
+            });
+        }
+
+        function handleAccesorioFotoSelected(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (!file.type || !file.type.startsWith('image/')) {
+                alert('Selecciona una imagen válida para el accesorio.');
+                event.target.value = '';
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                alert('La foto del accesorio no puede superar 10 MB.');
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(loadEvent) {
+                const image = new Image();
+                image.onload = function() {
+                    const maxSide = 1000;
+                    const ratio = Math.min(1, maxSide / Math.max(image.width, image.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(image.width * ratio));
+                    canvas.height = Math.max(1, Math.round(image.height * ratio));
+                    const context = canvas.getContext('2d');
+                    context.fillStyle = '#ffffff';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    tempAccesorioFoto = canvas.toDataURL('image/jpeg', 0.84);
+                    renderAccesorioFotoPreview();
+                };
+                image.onerror = function() {
+                    alert('No fue posible leer la foto seleccionada.');
+                    tempAccesorioFoto = '';
+                    renderAccesorioFotoPreview();
+                };
+                image.src = String(loadEvent.target.result || '');
+            };
+            reader.onerror = function() {
+                alert('No fue posible cargar la foto del accesorio.');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderAccesorioFotoPreview() {
+            const preview = document.getElementById('accesorio-foto-preview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            if (!tempAccesorioFoto) {
+                preview.classList.add('hidden');
+                return;
+            }
+            const image = document.createElement('img');
+            image.src = tempAccesorioFoto;
+            image.alt = 'Vista previa del accesorio';
+            image.className = 'w-16 h-16 object-cover rounded-xl border border-emerald-200';
+            preview.appendChild(image);
+            preview.classList.remove('hidden');
+        }
+
+        function addAccesorioToList() {
+            const nameInput = document.getElementById('inp-accesorio-nombre');
+            const incrementInput = document.getElementById('inp-accesorio-incremento');
+            const name = nameInput.value.trim();
+            const incremento = Math.max(0, parseFloat(incrementInput.value) || 0);
+            if (!name) {
+                alert('Escribe el nombre del accesorio.');
+                return;
+            }
+            if (!tempAccesorioFoto) {
+                alert('Selecciona una foto para el accesorio.');
+                return;
+            }
+            const exists = tempAccesorios.some(item => String(item.nombre).trim().toUpperCase() === name.toUpperCase());
+            if (exists) {
+                alert('Ese accesorio ya está agregado.');
+                return;
+            }
+            tempAccesorios.push({ nombre: name, incremento, foto: tempAccesorioFoto });
+            nameInput.value = '';
+            incrementInput.value = '';
+            tempAccesorioFoto = '';
+            const fileInput = document.getElementById('inp-accesorio-foto');
+            if (fileInput) fileInput.value = '';
+            renderAccesorioFotoPreview();
+            renderAccesoriosTags();
+        }
+
+        function renderAccesoriosTags() {
+            const container = document.getElementById('list-accesorios-tags');
+            if (!container) return;
+            container.innerHTML = '';
+            tempAccesorios.forEach((item, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-2 flex items-center gap-2';
+
+                if (item.foto || item.imagen) {
+                    const image = document.createElement('img');
+                    image.src = item.foto || item.imagen;
+                    image.alt = `Foto de ${item.nombre || 'accesorio'}`;
+                    image.className = 'w-12 h-12 object-cover rounded-lg border border-emerald-200 bg-white';
+                    tag.appendChild(image);
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'w-12 h-12 rounded-lg bg-white border border-dashed border-emerald-300 flex items-center justify-center text-emerald-500';
+                    placeholder.innerHTML = '<i class="fa-solid fa-image"></i>';
+                    tag.appendChild(placeholder);
+                }
+
+                const details = document.createElement('div');
+                details.className = 'min-w-0';
+                const title = document.createElement('div');
+                title.className = 'font-black text-[11px]';
+                title.textContent = String(item.nombre || 'Accesorio');
+                const price = document.createElement('div');
+                price.className = 'text-[10px] text-emerald-700 font-bold';
+                price.textContent = `+${formatCOP(Number(item.incremento || 0))}`;
+                details.append(title, price);
+                tag.appendChild(details);
+
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.setAttribute('aria-label', 'Quitar accesorio');
+                remove.className = 'ml-1 text-red-500 hover:text-red-700 font-bold text-lg';
+                remove.textContent = '×';
+                remove.addEventListener('click', () => {
+                    tempAccesorios.splice(index, 1);
+                    renderAccesoriosTags();
+                });
+                tag.appendChild(remove);
                 container.appendChild(tag);
             });
         }
@@ -1178,6 +1323,19 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     uploadedOriginals.push(finalUrl);
                 }
 
+                const uploadedAccessories = [];
+                for (const accessory of tempAccesorios) {
+                    let accessoryPhoto = accessory.foto || accessory.imagen || '';
+                    if (accessoryPhoto.startsWith('data:')) {
+                        accessoryPhoto = await uploadBase64ToStorage(accessoryPhoto);
+                    }
+                    uploadedAccessories.push({
+                        nombre: String(accessory.nombre || '').trim(),
+                        incremento: Math.max(0, Number(accessory.incremento || accessory.adicional || 0)),
+                        foto: accessoryPhoto
+                    });
+                }
+
                 const baseProductData = {
                     nombre: document.getElementById('prod-nombre').value.trim(),
                     descripcion: document.getElementById('prod-descripcion').value.trim(),
@@ -1198,7 +1356,8 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
                     valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
                     tallas: tempTallas,
-                    colores: tempColores
+                    colores: tempColores,
+                    accesorios: uploadedAccessories
                 };
 
                 const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';

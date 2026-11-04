@@ -10,6 +10,7 @@
   let filteredWebClients = [];
   let webOrders = [];
   let filteredWebOrders = [];
+  let maxOrdersPerDay = 20;
 
   function adminReady() { return localStorage.getItem('cupissa_admin_logged') === 'true' && !!db; }
   function renderLoadError(tbodyId, colspan, message) {
@@ -21,6 +22,7 @@
     if (!adminReady()) return;
     await loadWebClients();
     await loadWebOrders();
+    await loadDailyCapacityConfig();
   }
   async function loadWebClients() {
     try {
@@ -37,7 +39,7 @@
     try {
       const { data, error } = await db.from('pedidos_web').select('*').order('created_at', { ascending:false });
       if (error) throw error;
-      webOrders = (data || []).map(order => ({...order, _client: webClients.find(c => String(c.id) === String(order.cliente_web_id)) || null}));
+      webOrders = (data || []).map(order => { const orderKeys = [order.cliente_web_id, order.cliente_id].filter(v => v != null).map(String); const linked = webClients.find(c => [c.id, c.cliente_id].filter(v => v != null).some(value => orderKeys.includes(String(value)))); return {...order, _client:linked || null}; });
       filteredWebOrders = [...webOrders]; renderWebOrders();
     } catch (error) {
       console.error('No fue posible consultar pedidos_web:', error);
@@ -48,26 +50,28 @@
     const body = $('web-clients-tbody'); if (!body) return;
     $('web-clients-total').textContent = webClients.length;
     if (!filteredWebClients.length) { body.innerHTML = '<tr><td colspan="8" class="p-7 text-center text-slate-400">No hay clientes web registrados.</td></tr>'; return; }
-    body.innerHTML = filteredWebClients.map(c => `<tr class="hover:bg-slate-50"><td class="admin-web-table-cell font-bold">${esc(c.nombres)}</td><td class="admin-web-table-cell">${esc(c.apellidos)}</td><td class="admin-web-table-cell font-mono">${esc(c.telefono)}</td><td class="admin-web-table-cell">${esc(c.correo)}</td><td class="admin-web-table-cell">${esc(c.direccion)}</td><td class="admin-web-table-cell">${esc(c.barrio)}</td><td class="admin-web-table-cell">${esc(c.ciudad)}</td><td class="admin-web-table-cell"><button type="button" class="admin-web-button" onclick="viewWebClient('${esc(c.id)}')">Ver ficha</button></td></tr>`).join('');
+    body.innerHTML = filteredWebClients.map(c => `<tr class="hover:bg-slate-50"><td class="admin-web-table-cell font-bold">${esc(c.nombres)}</td><td class="admin-web-table-cell">${esc(c.apellidos)}</td><td class="admin-web-table-cell font-mono">${esc(c.telefono)}</td><td class="admin-web-table-cell">${esc(c.correo)}</td><td class="admin-web-table-cell">${esc(c.direccion)}</td><td class="admin-web-table-cell">${esc(c.barrio)}</td><td class="admin-web-table-cell">${esc(c.ciudad)}</td><td class="admin-web-table-cell"><div class="flex items-center gap-1"><button type="button" class="admin-web-button" onclick="viewWebClient('${esc(c.id)}')">Ver ficha</button><button type="button" class="admin-web-delete" title="Eliminar cliente" aria-label="Eliminar cliente" onclick="deleteWebClient('${esc(c.id)}')"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join('');
   }
   function renderWebOrders() {
     const body = $('web-orders-tbody'); if (!body) return;
     if (!filteredWebOrders.length) { body.innerHTML = '<tr><td colspan="13" class="p-7 text-center text-slate-400">Todavía no hay pedidos web registrados.</td></tr>'; return; }
     body.innerHTML = filteredWebOrders.map(o => {
       const items = Array.isArray(o.productos) ? o.productos : [];
-      const photoCount = Array.isArray(o.imagenes) ? o.imagenes.length : 0;
-      const rest = o.restante != null ? o.restante : Math.max(0, Number(o.total||0)+Number(o.domicilio_envio||0)-Number(o.anticipo||0));
+      const orderImages = Array.isArray(o.imagenes) ? o.imagenes : [...new Set(items.flatMap(p => Array.isArray(p.imagenes) ? p.imagenes : (p.imagen_url ? [p.imagen_url] : [])))];
+      const photoCount = orderImages.length;
+      const rest = o.restante != null ? o.restante : Math.max(0, Number(o.total||0)+Number(o.domicilio_envio ?? o.envio ?? 0)-Number(o.anticipo||0));
       const statusOptions = states.map(s => `<option value="${s}" ${String(o.estado||'AGENDADO')===s?'selected':''}>${s}</option>`).join('');
+      const type = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
       return `<tr class="hover:bg-slate-50">
-        <td class="admin-web-table-cell font-black text-pink-700">${esc(o.numero_pedido || 'CUP')}</td>
+        <td class="admin-web-table-cell font-black text-pink-700">${esc(o.numero_pedido || o.codigo || 'CUP')}</td>
         <td class="admin-web-table-cell">${items.map(p=>esc(p.nombre||p.producto||'Producto')).join('<br>') || '—'}</td>
-        <td class="admin-web-table-cell">${esc(o.tipo_pedido)}</td><td class="admin-web-table-cell">${esc(o.fecha_entrega)}</td>
-        <td class="admin-web-table-cell font-bold">${esc(clientName(o._client))}</td><td class="admin-web-table-cell">${esc(o.contacto || o._client?.telefono)}</td>
-        <td class="admin-web-table-cell">${esc(o.ubicacion || o._client?.direccion)}</td>
-        <td class="admin-web-table-cell font-bold">${cop(o.total)}</td><td class="admin-web-table-cell">${cop(o.domicilio_envio)}</td>
+        <td class="admin-web-table-cell">${esc(type)}</td><td class="admin-web-table-cell">${esc(o.fecha_entrega)}</td>
+        <td class="admin-web-table-cell font-bold">${esc(clientName(o._client) !== 'Cliente sin nombre' ? clientName(o._client) : (o.cliente_nombre || 'Cliente sin nombre'))}</td><td class="admin-web-table-cell">${esc(o.contacto || o.telefono || o._client?.telefono)}</td>
+        <td class="admin-web-table-cell">${esc(o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ') || o._client?.direccion)}</td>
+        <td class="admin-web-table-cell font-bold">${cop(o.total)}</td><td class="admin-web-table-cell">${cop(o.domicilio_envio ?? o.envio)}</td>
         <td class="admin-web-table-cell">${cop(o.anticipo)}</td><td class="admin-web-table-cell font-black text-pink-700">${cop(rest)}</td>
         <td class="admin-web-table-cell"><button type="button" class="admin-web-button" onclick="viewWebOrder('${esc(o.id)}')"><i class="fa-regular fa-images mr-1"></i> Ver (${photoCount})</button></td>
-        <td class="admin-web-table-cell"><select class="admin-web-status" aria-label="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select></td>
+        <td class="admin-web-table-cell"><div class="flex items-center gap-2"><select class="admin-web-status" aria-label="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select><button type="button" class="admin-web-delete" title="Eliminar pedido" aria-label="Eliminar pedido" onclick="deleteWebOrder('${esc(o.id)}')"><i class="fa-solid fa-trash"></i></button></div></td>
       </tr>`;
     }).join('');
   }
@@ -85,6 +89,90 @@
     const select = $('web-order-client'); if (!select) return;
     select.innerHTML = '<option value="">Selecciona un cliente</option>' + webClients.map(c=>`<option value="${esc(c.id)}">${esc(clientName(c))} · ${esc(c.telefono)}</option>`).join('');
   }
+
+  async function loadDailyCapacityConfig() {
+    try {
+      const { data, error } = await db.from('configuracion_pedidos_web').select('max_pedidos_diarios').eq('id', 1).maybeSingle();
+      if (error) throw error;
+      maxOrdersPerDay = Math.max(1, Number(data?.max_pedidos_diarios || 20));
+      const input = $('max-orders-per-day');
+      if (input) input.value = String(maxOrdersPerDay);
+      const label = $('daily-capacity-current');
+      if (label) label.textContent = `${maxOrdersPerDay} pedidos por día`;
+      const note = $('daily-capacity-note');
+      if (note) note.textContent = 'Cuando se complete este número de pedidos de venta para una fecha, el calendario dejará de ofrecerla.';
+    } catch (error) {
+      console.error('No fue posible cargar el límite diario:', error);
+      const note = $('daily-capacity-note');
+      if (note) note.textContent = 'La configuración de cupos aún no está disponible.';
+    }
+  }
+
+  window.saveDailyCapacity = async function() {
+    const input = $('max-orders-per-day');
+    const button = $('save-daily-capacity');
+    const value = Number(input?.value);
+    if (!Number.isInteger(value) || value < 1 || value > 500) {
+      alert('Escribe una cantidad entera entre 1 y 500.');
+      return;
+    }
+    if (button) { button.disabled = true; button.textContent = 'Guardando…'; }
+    try {
+      const { data, error } = await db.from('configuracion_pedidos_web').update({ max_pedidos_diarios:value }).eq('id', 1).select('max_pedidos_diarios').single();
+      if (error) throw error;
+      maxOrdersPerDay = Number(data.max_pedidos_diarios);
+      const label = $('daily-capacity-current');
+      if (label) label.textContent = `${maxOrdersPerDay} pedidos por día`;
+      const note = $('daily-capacity-note');
+      if (note) note.textContent = 'Límite diario actualizado correctamente.';
+      alert('Cantidad máxima de pedidos diarios actualizada.');
+    } catch (error) {
+      console.error('No fue posible guardar el límite diario:', error);
+      alert('No fue posible guardar el límite. Verifica la actualización de CUPISSA en Supabase.');
+    } finally {
+      if (button) { button.disabled = false; button.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Guardar límite'; }
+    }
+  };
+
+  window.deleteWebOrder = async function(id) {
+    const order = webOrders.find(item => String(item.id) === String(id));
+    const code = order?.numero_pedido || order?.codigo || 'este pedido';
+    if (!confirm(`¿Eliminar definitivamente ${code}? Esta acción no se puede deshacer.`)) return;
+    try {
+      const { error } = await db.from('pedidos_web').delete().eq('id', id);
+      if (error) throw error;
+      await loadWebOrders();
+      alert('Pedido eliminado correctamente.');
+    } catch (error) {
+      console.error('No fue posible eliminar el pedido:', error);
+      alert('No fue posible eliminar el pedido.');
+    }
+  };
+
+  window.deleteWebClient = async function(id) {
+    const client = webClients.find(item => String(item.id) === String(id));
+    if (!client) return;
+    const name = clientName(client);
+    if (!confirm(`¿Eliminar a ${name}? También se eliminarán los pedidos web asociados a este cliente. Esta acción no se puede deshacer.`)) return;
+    try {
+      const deleteOrdersFor = async (column, value) => {
+        if (value == null || value === '') return;
+        const { error } = await db.from('pedidos_web').delete().eq(column, value);
+        if (error && !/PGRST204|column .* does not exist|Could not find .* column/i.test(error.message || '')) throw error;
+      };
+      await deleteOrdersFor('cliente_id', id);
+      if (client.cliente_id && String(client.cliente_id) !== String(id)) await deleteOrdersFor('cliente_id', client.cliente_id);
+      await deleteOrdersFor('cliente_web_id', id);
+      const { error } = await db.from('clientes_web').delete().eq('id', id);
+      if (error) throw error;
+      await loadWebAdminData();
+      alert('Cliente eliminado correctamente.');
+    } catch (error) {
+      console.error('No fue posible eliminar el cliente:', error);
+      alert('No fue posible eliminar el cliente.');
+      await loadWebAdminData();
+    }
+  };
 
   // La pestaña se controla desde este módulo sin cambiar las funciones de Créditos ni Catálogo.
   window.switchTab = function(tab) {
@@ -125,11 +213,13 @@
     const o = webOrders.find(item => String(item.id) === String(id)); if (!o) return;
     const c = o._client || {};
     const items = Array.isArray(o.productos) ? o.productos : [];
-    const images = Array.isArray(o.imagenes) ? o.imagenes : [];
+    const images = Array.isArray(o.imagenes) ? o.imagenes : [...new Set(items.flatMap(p => Array.isArray(p.imagenes) ? p.imagenes : (p.imagen_url ? [p.imagen_url] : [])))];
     const rest = o.restante != null ? o.restante : Math.max(0,Number(o.total||0)+Number(o.domicilio_envio||0)-Number(o.anticipo||0));
     const productsHtml = items.map((p,i)=>`<div class="p-3 rounded-xl border border-slate-100 flex gap-3">${p.imagen_url?`<img src="${esc(p.imagen_url)}" class="admin-web-order-image">`:''}<div class="min-w-0 flex-1"><strong class="text-xs text-slate-900">${i+1}. ${esc(p.nombre||p.producto||'Producto')}</strong><p class="text-[11px] text-slate-500 mt-1">Referencia: ${esc(p.referencia||'—')} · Talla: ${esc(p.talla||'—')} · Color: ${esc(p.color||'—')}</p><p class="text-[11px] text-slate-600 mt-1">Cantidad: ${esc(p.cantidad||1)} · Precio: ${cop(p.precio)}</p></div></div>`).join('') || '<p class="text-xs text-slate-400">Sin productos detallados.</p>';
     const imagesHtml = images.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" class="admin-web-order-image"></a>`).join('');
-    showAdminWebModal(`Pedido ${o.numero_pedido || ''}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c)],['Teléfono',o.contacto||c.telefono],['Tipo',o.tipo_pedido],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.domicilio_envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
+    const orderType = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
+    const orderName = o.numero_pedido || o.codigo || '';
+    showAdminWebModal(`Pedido ${orderName}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c) !== 'Cliente sin nombre' ? clientName(c) : o.cliente_nombre],['Teléfono',o.contacto||o.telefono||c.telefono],['Tipo',orderType],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ')],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.domicilio_envio ?? o.envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
   };
 
   function addProductRow() {
@@ -203,14 +293,19 @@
       const advance = Number($('web-order-advance').value||0);
       if (advance > total + shipping) throw new Error('El anticipo no puede superar el total más el envío.');
       const images = await uploadOrderImages($('web-order-images').files);
+      const locationParts = $('web-order-location').value.trim().split(',').map(x => x.trim()).filter(Boolean);
       const payload = {
-        cliente_web_id: client.id, cliente_id: client.cliente_id || null,
+        cliente_id: client.id,
         tipo_pedido: $('web-order-type').value,
         fecha_entrega: $('web-order-date').value,
-        contacto: $('web-order-contact').value.trim() || client.telefono || '',
-        ubicacion: $('web-order-location').value.trim() || [client.direccion,client.barrio,client.ciudad].filter(Boolean).join(', '),
-        total, domicilio_envio:shipping, anticipo:advance,
-        productos:products, imagenes:images, estado:$('web-order-state').value
+        cliente_nombre: clientName(client),
+        telefono: $('web-order-contact').value.trim() || client.telefono || '',
+        direccion: locationParts[0] || client.direccion || '',
+        barrio: locationParts[1] || client.barrio || '',
+        ciudad: locationParts[2] || client.ciudad || '',
+        total, envio:shipping, anticipo:advance,
+        productos:products.map((item, index) => ({ ...item, modalidad:$('web-order-type').value, ...(index === 0 && images.length ? { imagenes:images, imagen_url:images[0] } : {}) })),
+        estado:$('web-order-state').value
       };
       const { error } = await db.from('pedidos_web').insert([payload]);
       if (error) throw error;

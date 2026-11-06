@@ -1348,7 +1348,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             }
 
             currentCropper = new Cropper(imgElement, {
-                aspectRatio: 1,
+                aspectRatio: NaN, // Recorte libre: conserva la proporción que el usuario seleccione.
                 viewMode: 2,
                 autoCropArea: 0.9,
                 responsive: true,
@@ -1358,10 +1358,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         function confirmCropPhoto() {
             if (!currentCropper) return;
 
-            const canvas = currentCropper.croppedCanvas || currentCropper.getCroppedCanvas({
-                width: 800,
-                height: 800
-            });
+            const canvas = currentCropper.getCroppedCanvas({ imageSmoothingQuality: 'high' });
 
             if (canvas) {
                 const croppedBase64 = canvas.toDataURL('image/jpeg', 0.9);
@@ -1408,7 +1405,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 const wrapper = document.createElement('div');
                 wrapper.className = "relative group";
                 wrapper.innerHTML = `
-                    <img src="${src}" class="w-16 h-16 object-cover rounded-2xl border-2 fuchsia-border shadow-sm">
+                    <img src="${src}" class="w-16 h-16 object-contain rounded-2xl border-2 fuchsia-border shadow-sm bg-slate-50">
                     <button type="button" onclick="removeTempPhoto(${idx})" class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-700">×</button>
                 `;
                 container.appendChild(wrapper);

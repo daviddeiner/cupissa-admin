@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v12';
+const CACHE_NAME = 'cupissa-admin-v13';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ const APP_SHELL = [
   './assets/css/admin-enhancements.css?v=20261106-4',
   './assets/js/00-config.js',
   './assets/js/admin-core.js',
-  './assets/js/admin-web.js?v=20261106-4',
+  './assets/js/admin-web.js?v=20261106-5',
   './assets/js/admin-enhancements.js?v=20261106-4',
   './assets/js/admin-products.js',
   './logo.png',

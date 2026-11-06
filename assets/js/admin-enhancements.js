@@ -85,6 +85,10 @@
         }
       });
     });
+    if (normalized === 'catalogo') {
+      window.setupAdminProductsRealtime?.();
+      window.fetchProductsData?.({ preserveView: true });
+    }
     if (normalized === 'web-pedidos' && typeof window.loadWebAdminData === 'function') {
       window.loadWebAdminData();
     }
@@ -211,20 +215,72 @@
     const product = (Array.isArray(allProducts) ? allProducts : []).find(item => String(item.id) === String(id));
     if (!product) return;
     const nextHidden = !isHidden(product);
-    const action = nextHidden ? 'ocultar' : 'volver a publicar';
-    if (!confirm(`¿Deseas ${action} “${product.nombre || 'este producto'}”? No se eliminará del catálogo.`)) return;
+    const action = nextHidden ? 'ocultar en la tienda' : 'volver a publicar';
+    if (!confirm(`¿Deseas ${action} “${product.nombre || 'este producto'}”? El cambio se guardará directamente en Supabase.`)) return;
+
     try {
-      const { error } = await supabaseClient.from('productos').update({ oculto: nextHidden }).eq('id', id);
+      if (!supabaseClient) throw new Error('No hay una conexión activa con Supabase.');
+      const { data, error } = await supabaseClient
+        .from('productos')
+        .update({ oculto: nextHidden })
+        .eq('id', id)
+        .select('id, oculto')
+        .maybeSingle();
       if (error) throw error;
-      product.oculto = nextHidden;
-      localStorage.setItem('cupissa_cache_products', JSON.stringify(allProducts));
-      window.filterAdminProductsTable();
+      if (!data) throw new Error('Supabase no confirmó el cambio. Comprueba que el producto exista y que RLS permita actualizarlo.');
+
+      // No se cambia la copia en memoria como si fuera la base: se vuelve a leer el estado real.
+      await window.fetchProductsData?.({ preserveView: true });
+      const verb = nextHidden ? 'ocultado' : 'publicado';
+      console.info(`Producto ${verb} en Supabase:`, data.id);
     } catch (error) {
       console.error('No se pudo cambiar la visibilidad del producto:', error);
       const missingColumn = /oculto|column/i.test(error?.message || '');
       alert(missingColumn
-        ? 'Falta crear la columna productos.oculto en Supabase. Dejé preparado el SQL dentro de la carpeta supabase/migrations.'
+        ? 'Falta la columna productos.oculto en Supabase. Ejecuta el SQL de configuración de esa columna.'
         : (error?.message || 'No fue posible cambiar la visibilidad del producto.'));
+      await window.fetchProductsData?.({ preserveView: true });
+    }
+  };
+
+  // Refrescar desde Supabase al volver a la pestaña. Así, las eliminaciones hechas
+  // directamente en el panel de Supabase desaparecen del administrador.
+  let productsRealtimeChannel = null;
+  let productsRefreshTimer = null;
+  let productRefreshListenersInstalled = false;
+
+  window.setupAdminProductsRealtime = function () {
+    if (!supabaseClient || productsRealtimeChannel) return;
+    try {
+      productsRealtimeChannel = supabaseClient
+        .channel('cupissa-admin-productos-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
+          const catalog = $('tab-section-catalogo');
+          if (!catalog || catalog.classList.contains('hidden')) return;
+          clearTimeout(productsRefreshTimer);
+          productsRefreshTimer = setTimeout(() => window.fetchProductsData?.({ preserveView: true }), 180);
+        })
+        .subscribe(status => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('La sincronización en tiempo real de productos no está disponible; se actualizará al volver al catálogo.');
+            productsRealtimeChannel = null;
+          }
+        });
+    } catch (error) {
+      console.warn('No se pudo iniciar la sincronización en tiempo real de productos:', error);
+      productsRealtimeChannel = null;
+    }
+
+    if (!productRefreshListenersInstalled) {
+      productRefreshListenersInstalled = true;
+      const refreshIfCatalogIsActive = () => {
+        const catalog = $('tab-section-catalogo');
+        if (document.visibilityState === 'visible' && catalog && !catalog.classList.contains('hidden')) {
+          window.fetchProductsData?.({ preserveView: true });
+        }
+      };
+      window.addEventListener('focus', refreshIfCatalogIsActive);
+      document.addEventListener('visibilitychange', refreshIfCatalogIsActive);
     }
   };
 

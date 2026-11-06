@@ -302,14 +302,22 @@
   // ---------------------------------------------------------------------------
   let wizardStep = 1;
   let colorPhoto = '';
-  // La elección se exige cuando se cargan dos o más fotografías.
+  let colorPhotoOriginal = '';
   let publishMode = null;
+
+  function getProductMainPhotoCount() {
+    const mainPhotos = Array.isArray(tempBase64Photos) ? tempBase64Photos : [];
+    const colorPhotos = (Array.isArray(tempColores) ? tempColores : []).map(item =>
+      typeof item === 'string' ? '' : String(item?.foto || item?.imagen || item?.imagen_url || '').trim()
+    );
+    return new Set([...mainPhotos, ...colorPhotos].filter(Boolean)).size;
+  }
 
   function setPublishMode(mode) {
     const panel = $('product-publish-modes');
     const photoCount = Number(panel?.dataset.photoCount || 0);
     if ((mode === 'single' || mode === 'gallery') && photoCount < 2) {
-      alert('Selecciona al menos dos fotografías para elegir la modalidad de publicación.');
+      alert('Agrega al menos dos fotografías principales o fotos de colores para elegir la modalidad de publicación.');
       return null;
     }
     publishMode = mode === 'single' || mode === 'gallery' ? mode : null;
@@ -328,16 +336,15 @@
   function updateProductPublishModeVisibility() {
     const panel = $('product-publish-modes');
     if (!panel) return;
-    const photoCount = Math.max(0, Number(panel.dataset.photoCount || 0));
+    const photoCount = getProductMainPhotoCount();
     const isEditingExistingProduct = !!$('prod-edit-id')?.value;
-    // La selección queda visible desde que se abre el formulario. Solo se oculta
-    // al editar un producto existente, y se habilita cuando hay dos o más fotos.
+    panel.dataset.photoCount = String(photoCount);
     panel.classList.toggle('hidden', isEditingExistingProduct);
     const countLabel = panel.querySelector('[data-publish-count]');
     if (countLabel) {
       countLabel.textContent = photoCount < 2
-        ? 'Selecciona al menos 2 fotos para habilitar las opciones.'
-        : `${photoCount} fotografías seleccionadas. Elige una modalidad antes de guardar.`;
+        ? 'Agrega al menos 2 fotos principales o fotos de colores para habilitar las opciones.'
+        : `${photoCount} fotografías principales disponibles. Elige cómo crear las publicaciones.`;
     }
     panel.querySelectorAll('[data-publish-mode]').forEach(button => {
       const disabled = photoCount < 2 || isEditingExistingProduct;
@@ -347,10 +354,7 @@
     if (photoCount < 2) setPublishMode(null);
   }
   window.updateProductPublishModeVisibility = updateProductPublishModeVisibility;
-  window.setProductPublishPhotoCount = function(count) {
-    const panel = $('product-publish-modes');
-    if (!panel) return;
-    panel.dataset.photoCount = String(Math.max(0, Number(count) || 0));
+  window.setProductPublishPhotoCount = function() {
     updateProductPublishModeVisibility();
   };
 
@@ -383,17 +387,7 @@
         return false;
       }
     }
-    const editId = $('prod-edit-id')?.value;
-    if (!editId && (!Array.isArray(tempBase64Photos) || !tempBase64Photos.length)) {
-      alert('Agrega al menos una fotografía del producto. Puedes arrastrarla, seleccionarla o pegarla desde el portapapeles.');
-      $('prod-files-input')?.focus();
-      return false;
-    }
-    if (!editId && tempBase64Photos.length > 1 && !['single','gallery'].includes(window.CUPISSA_PRODUCT_PUBLISH_MODE)) {
-      alert('Antes de continuar, selecciona una modalidad de publicación debajo de las fotografías.');
-      $('product-publish-modes')?.scrollIntoView({ behavior:'smooth', block:'center' });
-      return false;
-    }
+    // Las fotos de color se agregan en el paso 2 y también cuentan como fotos principales.
     return true;
   }
 
@@ -438,22 +432,22 @@
     modePanel.className = 'product-publish-mode-panel';
     if (!modePanel.querySelector('[data-publish-mode="single"]')) modePanel.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
-        <p class="text-[11px] font-black uppercase tracking-wide text-slate-700">¿Cómo deseas publicar estas fotografías?</p>
+        <p class="text-[11px] font-black uppercase tracking-wide text-slate-700">¿Cómo deseas publicar las fotos del producto y sus colores?</p>
         <span data-publish-count class="text-[10px] font-semibold text-slate-500"></span>
       </div>
       <div class="admin-publish-modes">
         <button type="button" data-publish-mode="single" aria-pressed="false" class="admin-publish-mode">
           <span class="admin-publish-radio" aria-hidden="true"></span>
           <strong><i class="fa-solid fa-images mr-1"></i> PUBLICAR PRODUCTOS POR SEPARADO</strong>
-          <small>Una foto por producto. Crea una publicación por cada foto; todos los productos conservan los mismos datos, precios y variaciones, pero cada uno guarda únicamente su propia fotografía.</small>
+          <small>Una publicación por cada foto, usando esa imagen como portada. Los colores y sus fotos se conservan como variaciones del producto.</small>
         </button>
         <button type="button" data-publish-mode="gallery" aria-pressed="false" class="admin-publish-mode">
           <span class="admin-publish-radio" aria-hidden="true"></span>
           <strong><i class="fa-solid fa-layer-group mr-1"></i> PUBLICAR PRODUCTOS JUNTOS</strong>
-          <small>Crea una publicación por cada foto como portada. Cada publicación tendrá su propio perfil y contendrá todas las fotos en su galería.</small>
+          <small>Crea una publicación por cada foto como portada. Cada publicación tendrá su propia galería con todas las fotos principales y las fotos asignadas a colores.</small>
         </button>
       </div>
-      <p class="text-[10px] font-semibold text-slate-600 mt-2">Debes seleccionar una de las dos opciones para continuar.</p>`;
+      <p class="text-[10px] font-semibold text-slate-600 mt-2">Esta selección solo es necesaria cuando hay dos o más fotos principales, incluidas las fotos de colores.</p>`;
     if (!modePanel.dataset.eventsReady) {
       modePanel.addEventListener('click', event => {
         const option = event.target.closest('[data-publish-mode]');
@@ -469,27 +463,25 @@
       if (label) label.textContent = 'FOTOGRAFÍAS DEL PRODUCTO (PUEDES SELECCIONAR VARIAS)';
       const hint = photoPanel.querySelector('p');
       if (hint) hint.textContent = 'Arrastra imágenes aquí, selecciónalas o pégalas desde el portapapeles. Puedes recortar cada foto antes de guardar.';
-      const previewContainer = $('files-preview-container');
-      if (modePanel.parentNode !== photoPanel) {
-        if (previewContainer?.parentNode === photoPanel) photoPanel.insertBefore(modePanel, previewContainer.nextSibling);
-        else photoPanel.appendChild(modePanel);
-      } else if (previewContainer?.parentNode === photoPanel && modePanel.previousElementSibling !== previewContainer) {
-        photoPanel.insertBefore(modePanel, previewContainer.nextSibling);
-      }
       const pasteHelp = document.createElement('p');
       pasteHelp.className = 'text-[10px] text-slate-400 mt-2';
       pasteHelp.innerHTML = '<i class="fa-regular fa-paste mr-1"></i> También puedes copiar una imagen y pegarla aquí con Ctrl + V.';
-      photoPanel.appendChild(pasteHelp);
+      if (!photoPanel.querySelector('[data-cupissa-paste-help]')) {
+        pasteHelp.dataset.cupissaPasteHelp = 'true';
+        photoPanel.appendChild(pasteHelp);
+      }
     }
+    if (modePanel.parentNode !== step2) step2.appendChild(modePanel);
 
     // El formulario de colores ahora admite su propia fotografía.
     const colorPhotoArea = document.createElement('div');
     colorPhotoArea.id = 'prod-color-photo-area';
     colorPhotoArea.className = 'admin-image-dropzone grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end rounded-xl p-2';
     colorPhotoArea.innerHTML = `
-      <label class="block text-[10px] font-black uppercase text-slate-600">Foto de referencia del color
+      <label class="block text-[10px] font-black uppercase text-slate-600">Foto principal de este color
         <input id="prod-color-file" type="file" accept="image/*" class="mt-1 w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px]">
       </label>
+      <p class="sm:col-span-2 text-[10px] leading-relaxed text-slate-500">Esta imagen también aparecerá en grande en la galería del producto. Cuando el cliente elija este color, la ficha mostrará automáticamente su foto.</p>
       <div id="prod-color-photo-preview" class="hidden"></div>`;
     const accessoryLabel = $('inp-accesorio-foto')?.closest('label');
     if (accessoryLabel) { accessoryLabel.id = 'prod-accessory-photo-area'; accessoryLabel.classList.add('admin-image-dropzone','rounded-xl','p-2'); }
@@ -545,8 +537,9 @@
     window.openProductModal = function (...args) {
       baseOpenProduct.apply(this, args);
       colorPhoto = '';
+      colorPhotoOriginal = '';
       setPublishMode(null);
-      window.setProductPublishPhotoCount?.(0);
+      window.setProductPublishPhotoCount?.();
       // En un producto nuevo el selector siempre debe verse; queda deshabilitado
       // hasta que se carguen al menos dos fotografías.
       $('product-publish-modes')?.classList.remove('hidden');
@@ -560,6 +553,7 @@
     window.openEditProductModal = function (...args) {
       baseEditProduct.apply(this, args);
       colorPhoto = '';
+      colorPhotoOriginal = '';
       $('product-publish-modes')?.classList.add('hidden');
       window.renderColorFotoPreview();
       showWizardStep(1);
@@ -640,6 +634,7 @@
       window.renderAccesorioFotoPreview();
     } else if (target === 'color') {
       colorPhoto = cropped;
+      colorPhotoOriginal = original;
       window.renderColorFotoPreview();
     }
   }
@@ -702,10 +697,16 @@
     if (!name) return;
     const exists = tempColores.some(item => String(typeof item === 'string' ? item : item.nombre).trim().toUpperCase() === name.toUpperCase());
     if (exists) { alert('Ese color ya está agregado.'); return; }
-    tempColores.push({ nombre: name, incremento: Math.max(0, Number(incrementInput?.value || 0)), foto: colorPhoto });
+    tempColores.push({
+      nombre: name,
+      incremento: Math.max(0, Number(incrementInput?.value || 0)),
+      foto: colorPhoto,
+      foto_original: colorPhotoOriginal || colorPhoto
+    });
     if (nameInput) nameInput.value = '';
     if (incrementInput) incrementInput.value = '';
     colorPhoto = '';
+    colorPhotoOriginal = '';
     if ($('prod-color-file')) $('prod-color-file').value = '';
     window.renderColorFotoPreview();
     window.renderColoresTags();
@@ -729,6 +730,7 @@
       remove.addEventListener('click', () => { tempColores.splice(index, 1); window.renderColoresTags(); });
       tag.append(text, remove); container.appendChild(tag);
     });
+    window.setProductPublishPhotoCount?.();
   };
 
   window.renderPreviewPhotos = function () {
@@ -756,7 +758,7 @@
     // Mantiene visible la selección de modalidad apenas existen 2 o más fotos.
     // tempBase64Photos es el arreglo real que se llena al terminar cada recorte.
     if (typeof window.setProductPublishPhotoCount === 'function') {
-      window.setProductPublishPhotoCount(tempBase64Photos.length);
+      window.setProductPublishPhotoCount();
     }
   };
 

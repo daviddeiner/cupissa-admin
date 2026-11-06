@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v14-colors-main-gallery';
+const CACHE_NAME = 'cupissa-admin-v15-recorte-libre';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,9 +7,9 @@ const APP_SHELL = [
   './assets/css/admin-modules.css',
   './assets/css/admin-enhancements.css?v=20261106-4',
   './assets/js/00-config.js',
-  './assets/js/admin-core.js?v=20261106-6',
+  './assets/js/admin-core.js?v=20261106-7',
   './assets/js/admin-web.js?v=20261106-5',
-  './assets/js/admin-enhancements.js?v=20261106-6',
+  './assets/js/admin-enhancements.js?v=20261106-7',
   './assets/js/admin-products.js',
   './logo.png',
   './favicon.png',

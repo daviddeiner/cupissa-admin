@@ -1,6 +1,62 @@
-const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrZHh0ZXNnd3FvaXpvYnhhYXdwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjA4MzE2MiwiZXhwIjoyMTA3NjU5MTYyfQ.sqawaZ_yaWD6fVeuqDKUZYR766ZBAO7lF_IGvF44x0k';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
+        const SUPABASE_ANON_KEY = window.CUPISSA_SUPABASE_ANON_KEY || '';
+        let supabaseClient = null;
+        function cupissaCreateSupabaseClient() {
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY || /PEGA_AQUI|YOUR_|CHANGE_ME/i.test(SUPABASE_ANON_KEY)) return null;
+            if (typeof supabase === 'undefined' || typeof supabase.createClient !== 'function') return null;
+            try { return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+            catch (error) { console.error('No fue posible iniciar la conexión de Supabase:', error); return null; }
+        }
+        supabaseClient = cupissaCreateSupabaseClient();
+
+        function cupissaIsSecretApiKey(value) {
+            const key = String(value || '').trim();
+            if (/^sb_secret_/i.test(key)) return true;
+            const parts = key.split('.');
+            if (parts.length === 3) {
+                try {
+                    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+                    const payload = JSON.parse(atob(padded));
+                    return String(payload.role || '').toLowerCase() === 'service_role';
+                } catch (_) { return false; }
+            }
+            return false;
+        }
+
+        window.openSupabaseConfig = function () {
+            const panel = document.getElementById('admin-supabase-config-panel');
+            if (panel) panel.classList.remove('hidden');
+            const input = document.getElementById('admin-supabase-public-key');
+            if (input) {
+                try { input.value = localStorage.getItem('cupissa_supabase_public_key') || ''; } catch (_) { input.value = ''; }
+                input.focus();
+            }
+        };
+        window.closeSupabaseConfig = function () {
+            document.getElementById('admin-supabase-config-panel')?.classList.add('hidden');
+        };
+        window.saveSupabasePublicKey = function (event) {
+            event?.preventDefault();
+            const input = document.getElementById('admin-supabase-public-key');
+            const feedback = document.getElementById('admin-supabase-config-error');
+            const key = String(input?.value || '').trim();
+            const showError = message => { if (feedback) { feedback.textContent = message; feedback.classList.remove('hidden'); } };
+            if (!key) return showError('Pega la clave pública publishable o anon de este proyecto.');
+            if (cupissaIsSecretApiKey(key) || /^sb_secret_/i.test(key)) {
+                return showError('Esa es una clave secreta o service_role. No se puede usar en el navegador. Copia la clave publishable o anon.');
+            }
+            if (!key.startsWith('sb_publishable_') && !key.startsWith('eyJ')) {
+                return showError('El formato no coincide con una clave publishable (sb_publishable_) ni con la clave anon antigua (eyJ…).');
+            }
+            try {
+                localStorage.setItem('cupissa_supabase_public_key', key);
+                localStorage.removeItem('cupissa_admin_logged');
+                window.location.reload();
+            } catch (error) {
+                showError('El navegador no permitió guardar la configuración.');
+            }
+        };
 
         let allClients = [];
         let filteredClients = [];
@@ -22,13 +78,59 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
         let pendingImageQueue = [];
         let currentCropper = null;
 
-        window.onload = function() {
-            const adminAuth = localStorage.getItem('cupissa_admin_logged');
-            if (adminAuth === 'true') {
-                document.getElementById('admin-login-screen').classList.add('hidden');
-                fetchAdminData();
-                fetchProductsData();
-                if (typeof loadWebAdminData === 'function') loadWebAdminData();
+        function normalizeCreditStatus(value) {
+            return String(value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+        }
+
+        function creditClientReference(credit) {
+            const candidates = [credit?.cliente_id, credit?.clienteId, credit?.id_cliente, credit?.idCliente, credit?.cliente_uuid, credit?.customer_id, credit?.cliente];
+            for (const candidate of candidates) {
+                const value = candidate && typeof candidate === 'object'
+                    ? (candidate.id ?? candidate.cliente_id ?? candidate.id_cliente)
+                    : candidate;
+                if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim().toLowerCase();
+            }
+            return '';
+        }
+
+        function isActiveCredit(credit) {
+            const status = normalizeCreditStatus(credit?.estado ?? credit?.status);
+            if (['PAGADO', 'PAGADA', 'CANCELADO', 'CANCELADA', 'CERRADO', 'CERRADA', 'FINALIZADO', 'FINALIZADA'].includes(status)) return false;
+            const balanceValue = credit?.deuda_actual ?? credit?.saldo_pendiente ?? credit?.saldo ?? credit?.monto_total ?? 0;
+            const balance = Number(balanceValue || 0);
+            if (!Number.isFinite(balance) || balance <= 0) return false;
+            return status === 'ACTIVO' || status === 'VIGENTE' || status === 'PENDIENTE' || (!status && balance > 0) || (status !== '' && !['INACTIVO', 'INACTIVA'].includes(status));
+        }
+
+        window.onload = async function() {
+            try {
+                if (!supabaseClient) {
+                    document.getElementById('admin-supabase-config-notice')?.classList.remove('hidden');
+                    return;
+                }
+                const { data } = await supabaseClient.auth.getSession();
+                const session = data?.session;
+                const allowedEmail = String(window.CUPISSA_ADMIN_EMAIL || '').toLowerCase();
+                if (session?.user?.email?.toLowerCase() === allowedEmail) {
+                    localStorage.setItem('cupissa_admin_logged', 'true');
+                    document.getElementById('admin-login-screen').classList.add('hidden');
+                    fetchAdminData();
+                    fetchProductsData();
+                    if (typeof loadWebAdminData === 'function') loadWebAdminData();
+                } else {
+                    localStorage.removeItem('cupissa_admin_logged');
+                }
+            } catch (error) {
+                console.error('No fue posible verificar la sesión administrativa de Supabase:', error);
+                localStorage.removeItem('cupissa_admin_logged');
+                if (/invalid api key|invalid apikey|api key/i.test(String(error?.message || ''))) {
+                    document.getElementById('admin-supabase-config-notice')?.classList.remove('hidden');
+                    const errorBox = document.getElementById('admin-login-error');
+                    if (errorBox) {
+                        errorBox.querySelector('span').textContent = 'La clave pública guardada no es válida para este proyecto. Abre “Configurar conexión” y reemplázala por la clave publishable/anon de CUPISSA.';
+                        errorBox.classList.remove('hidden');
+                    }
+                }
             }
         };
 
@@ -61,24 +163,49 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             }
         }
 
-        function handleAdminLogin(e) {
+        async function handleAdminLogin(e) {
             e.preventDefault();
             const email = document.getElementById('admin-user-email').value.trim();
-            const pass = document.getElementById('admin-user-pass').value.trim();
-            if (email === 'contactocupissa@gmail.com' && pass === 'Deiner123.Cupissa') {
+            const pass = document.getElementById('admin-user-pass').value;
+            const errorBox = document.getElementById('admin-login-error');
+            const allowedEmail = String(window.CUPISSA_ADMIN_EMAIL || '').toLowerCase();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            if (submitButton) { submitButton.disabled = true; submitButton.querySelector('span').textContent = 'Verificando...'; }
+            errorBox.classList.add('hidden');
+            try {
+                if (!supabaseClient) {
+                    document.getElementById('admin-supabase-config-notice')?.classList.remove('hidden');
+                    throw new Error('Falta configurar la clave pública de Supabase. Pulsa “Configurar conexión” antes de iniciar sesión.');
+                }
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password:pass });
+                if (error) throw error;
+                if (String(data?.user?.email || '').toLowerCase() !== allowedEmail) {
+                    await supabaseClient.auth.signOut();
+                    throw new Error('Este usuario no tiene permiso para administrar CUPISSA.');
+                }
                 localStorage.setItem('cupissa_admin_logged', 'true');
                 document.getElementById('admin-login-screen').classList.add('hidden');
                 fetchAdminData();
                 fetchProductsData();
                 if (typeof loadWebAdminData === 'function') loadWebAdminData();
-            } else {
-                document.getElementById('admin-login-error').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error de autenticación administrativa:', error);
+                let message = error?.message || 'Usuario o contraseña incorrectos.';
+                if (/invalid api key|invalid apikey|api key/i.test(message)) {
+                    message = 'La clave pública de conexión de Supabase no corresponde a este proyecto o está incompleta. Pulsa “Configurar conexión” y pega la clave publishable/anon.';
+                    document.getElementById('admin-supabase-config-notice')?.classList.remove('hidden');
+                }
+                errorBox.querySelector('span').textContent = message;
+                errorBox.classList.remove('hidden');
+            } finally {
+                if (submitButton) { submitButton.disabled = false; submitButton.querySelector('span').textContent = 'Acceder al Panel'; }
             }
         }
 
-        function handleAdminLogout() {
+        async function handleAdminLogout() {
+            try { if (supabaseClient) await supabaseClient.auth.signOut(); } catch (error) { console.warn('No fue posible cerrar la sesión remota:', error); }
             localStorage.removeItem('cupissa_admin_logged');
-            document.getElementById('admin-login-screen').classList.add('hidden');
+            document.getElementById('admin-login-screen').classList.remove('hidden');
         }
 
         async function fetchAdminData() {
@@ -86,36 +213,47 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 const { data: clientes, error: cliError } = await supabaseClient.from('clientes').select('*');
                 if (cliError) throw cliError;
 
-                if (!clientes || clientes.length === 0) {
-                    allClients = [];
-                    filteredClients = [];
-                    renderAdminTable();
-                    return;
+                const creditResult = await supabaseClient.from('creditos').select('*');
+                const creditLoadWarning = document.getElementById('admin-credit-load-error');
+                let creditRows = creditResult.data || [];
+                if (creditResult.error) {
+                    console.error('No fue posible leer la tabla creditos:', creditResult.error);
+                    creditRows = [];
+                    if (creditLoadWarning) {
+                        creditLoadWarning.textContent = `Supabase no permitió leer la tabla creditos: ${creditResult.error.message}. Revisa el permiso de la tabla y las políticas RLS para el rol authenticated.`;
+                        creditLoadWarning.classList.remove('hidden');
+                    }
+                } else if (creditLoadWarning) {
+                    creditLoadWarning.classList.add('hidden');
+                    creditLoadWarning.textContent = '';
                 }
 
-                const { data: creditos, error: credError } = await supabaseClient.from('creditos').select('*');
-                if (credError) console.warn("Error al cargar créditos:", credError);
-
-                allClients = clientes.map(cli => {
-                    const cliCreditos = (creditos || []).filter(c => {
-                        const clienteRef = c.cliente_id || c.clienteId || c.id_cliente;
-                        return clienteRef && String(clienteRef).trim() === String(cli.id).trim();
-                    });
-
-                    return {
-                        ...cli,
-                        creditos: cliCreditos
-                    };
+                const clientMap = new Map();
+                (clientes || []).forEach(client => {
+                    const key = String(client.id ?? '').trim().toLowerCase();
+                    if (key) clientMap.set(key, { ...client, creditos: [] });
                 });
 
+                creditRows.forEach(credit => {
+                    const clientRef = creditClientReference(credit);
+                    const client = clientMap.get(clientRef);
+                    if (client) client.creditos.push(credit);
+                });
+
+                allClients = Array.from(clientMap.values());
                 filteredClients = [...allClients];
                 currentClientsPage = 1;
                 renderAdminTable();
             } catch (err) {
-                console.error("Error al cargar los datos de administración:", err);
+                console.error('Error al cargar los clientes desde Supabase:', err);
                 allClients = [];
-                filteredClients = [...allClients];
+                filteredClients = [];
                 renderAdminTable();
+                const status = document.getElementById('admin-credit-load-error');
+                if (status) {
+                    status.textContent = `No se pudieron cargar los clientes: ${err?.message || 'Error de consulta'}`;
+                    status.classList.remove('hidden');
+                }
             }
         }
 
@@ -137,7 +275,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
             } else {
                 clientsToShow.forEach(client => {
                     const creditos = client.creditos || [];
-                    const creditosActivos = creditos.filter(c => c.estado === 'ACTIVO');
+                    const creditosActivos = creditos.filter(isActiveCredit);
                     const deudaTotal = creditosActivos.reduce((acc, c) => acc + Number(c.deuda_actual || c.monto_total || 0), 0);
 
                     const tr = document.createElement('tr');
@@ -269,7 +407,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
         function renderAdminDebtsList(client) {
             const container = document.getElementById('admin-debts-container');
             container.innerHTML = '';
-            const creditos = client.creditos || [];
+            const creditos = (client.creditos || []).filter(isActiveCredit);
             if (creditos.length === 0) {
                 container.innerHTML = `<div class="p-4 bg-slate-50 text-slate-400 rounded-2xl text-center text-xs">Sin deudas activas.</div>`;
                 return;
@@ -280,7 +418,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 const valorCuota = cred.valor_cuota || Math.ceil((cred.monto_total || 0) / totalCuotas);
                 const fechaBase = cred.proximo_vencimiento || new Date().toISOString().split('T')[0];
                 const frecuencia = cred.frecuencia || 'Quincenal';
-                const creditoEstado = cred.estado || 'ACTIVO';
+                const creditoEstado = normalizeCreditStatus(cred.estado || 'ACTIVO');
 
                 let tablaCuotasHTML = '';
                 let fechaActualObj = new Date(fechaBase + 'T00:00:00');
@@ -500,7 +638,10 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
         }
 
         // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
-        async function fetchProductsData() {
+        async function fetchProductsData(options = {}) {
+            const preserveView = options?.preserveView === true;
+            const savedWindowScroll = preserveView ? window.scrollY : 0;
+            const savedCatalogScroll = preserveView ? (document.getElementById('tab-section-catalogo')?.scrollTop || 0) : 0;
             try {
                 const { data, error } = await supabaseClient.from('productos').select('*').order('created_at', { ascending: true });
                 if (error) {
@@ -510,7 +651,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 } else {
                     allProducts = data || [];
                 }
-                
+
                 if (allProducts.length > 0) {
                     localStorage.setItem('cupissa_cache_products', JSON.stringify(allProducts));
                 } else {
@@ -519,16 +660,29 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     else allProducts = JSON.parse(localStorage.getItem('cupissa_local_products') || '[]');
                 }
             } catch (e) {
-                console.error("Error al obtener productos:", e);
+                console.error('Error al obtener productos:', e);
                 const cached = localStorage.getItem('cupissa_cache_products');
                 if (cached) allProducts = JSON.parse(cached);
                 else allProducts = JSON.parse(localStorage.getItem('cupissa_local_products') || '[]');
             }
+
             filteredProducts = [...allProducts];
-            currentProductsPage = 1;
-            renderProductsTable();
+            if (preserveView && typeof window.filterAdminProductsTable === 'function') {
+                window.filterAdminProductsTable({ preserveView: true, revealCount: Number(options?.revealCount || 0) });
+            } else {
+                currentProductsPage = 1;
+                renderProductsTable();
+            }
             renderSugerenciasCampos();
             await loadFeaturedSeasonAdmin();
+
+            if (preserveView) {
+                requestAnimationFrame(() => {
+                    window.scrollTo({ top: savedWindowScroll, behavior: 'auto' });
+                    const catalog = document.getElementById('tab-section-catalogo');
+                    if (catalog) catalog.scrollTop = savedCatalogScroll;
+                });
+            }
         }
 
         // Selector GLOBAL de temporada destacada. Lee siempre productos.temporada
@@ -1241,6 +1395,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
 
         function renderPreviewPhotos() {
             const container = document.getElementById('files-preview-container');
+            if (!container) return;
             container.innerHTML = '';
             tempBase64Photos.forEach((src, idx) => {
                 const wrapper = document.createElement('div');
@@ -1251,6 +1406,9 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 `;
                 container.appendChild(wrapper);
             });
+            if (typeof window.setProductPublishPhotoCount === 'function') {
+                window.setProductPublishPhotoCount(tempBase64Photos.length);
+            }
         }
 
         function removeTempPhoto(index) {
@@ -1299,12 +1457,47 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
 
         async function handleSaveProduct(e) {
             e.preventDefault();
+            e.stopPropagation();
+            const productForm = e.currentTarget || e.target || document.querySelector('#modal-product-form form');
             const editId = document.getElementById('prod-edit-id').value;
+            let savedProductCount = 0;
+            const requiredFields = [
+                ['prod-nombre', 'Escribe el título del producto.', 1],
+                ['prod-mundo', 'Selecciona o escribe el mundo.', 1],
+                ['prod-categoria', 'Selecciona o escribe la categoría.', 1],
+                ['prod-temporada', 'Selecciona o escribe la temporada.', 1],
+                ['prod-precio-detal', 'Indica el precio al detal.', 2],
+                ['prod-porcentaje-anticipo', 'Indica el porcentaje de anticipo.', 2]
+            ];
+            for (const [fieldId, message, step] of requiredFields) {
+                const field = document.getElementById(fieldId);
+                if (!field || String(field.value ?? '').trim() === '') {
+                    window.showProductStep?.(step);
+                    alert(message);
+                    field?.focus();
+                    return;
+                }
+            }
+            const selectedPublishMode = window.CUPISSA_PRODUCT_PUBLISH_MODE;
+            if (!editId && tempBase64Photos.length > 1 && !['single', 'gallery'].includes(selectedPublishMode)) {
+                alert('Selecciona cómo deseas publicar las fotografías: productos por separado (una foto cada uno) o productos juntos (todas las fotos en cada galería).');
+                document.getElementById('product-publish-modes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
             
-            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const submitBtn = productForm?.querySelector('button[type="submit"]');
+            if (!submitBtn) {
+                alert('No se encontró el botón de guardado del producto. Cierra y vuelve a abrir el formulario.');
+                return;
+            }
             const originalBtnHTML = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i><span>Guardando...</span>`;
+
+            // Deben vivir fuera del bloque try porque también se utilizan en catch.
+            // Si Supabase rechaza el INSERT/UPDATE, el respaldo local necesita estos datos.
+            let baseProductData = null;
+            const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';
 
             try {
                 if (tempTallas.length > 0) {
@@ -1336,7 +1529,19 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     });
                 }
 
-                const baseProductData = {
+                const uploadedColors = [];
+                for (const color of tempColores) {
+                    const normalizedColor = typeof color === 'string' ? { nombre: color, incremento: 0 } : { ...color };
+                    let colorPhoto = normalizedColor.foto || normalizedColor.imagen || '';
+                    if (colorPhoto.startsWith('data:')) colorPhoto = await uploadBase64ToStorage(colorPhoto);
+                    uploadedColors.push({
+                        nombre: String(normalizedColor.nombre || '').trim(),
+                        incremento: Math.max(0, Number(normalizedColor.incremento || normalizedColor.adicional || 0)),
+                        foto: colorPhoto
+                    });
+                }
+
+                baseProductData = {
                     nombre: document.getElementById('prod-nombre').value.trim(),
                     descripcion: document.getElementById('prod-descripcion').value.trim(),
                     mundo: document.getElementById('prod-mundo').value.trim().toUpperCase(),
@@ -1348,6 +1553,7 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,
                     porcentaje_anticipo: parseFloat(document.getElementById('prod-porcentaje-anticipo').value) || 20,
                     dias_preparacion: parseInt(document.getElementById('prod-dias-preparacion').value) || 3,
+                    oculto: editId ? undefined : false,
                     personalizable: document.getElementById('chk-personalizable').checked,
                     al_por_mayor: document.getElementById('chk-al-por-mayor').checked,
                     venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
@@ -1356,11 +1562,9 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
                     valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
                     tallas: tempTallas,
-                    colores: tempColores,
+                    colores: uploadedColors,
                     accesorios: uploadedAccessories
                 };
-
-                const defaultImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop';
 
                 if (editId) {
                     const singleData = {
@@ -1372,20 +1576,25 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                     if (error) throw error;
                 } else {
                     const photosCount = uploadedPhotos.length;
+                    savedProductCount = photosCount > 1 ? photosCount : 1;
                     
                     if (photosCount > 1) {
                         const productsToInsert = [];
+                        const publishMode = selectedPublishMode;
                         for (let i = 0; i < photosCount; i++) {
                             const currentPhoto = uploadedPhotos[i];
                             const currentOrig = uploadedOriginals[i] || currentPhoto;
-                            
-                            const otherPhotos = uploadedPhotos.filter((_, idx) => idx !== i);
-                            const otherOrigs = uploadedOriginals.filter((_, idx) => idx !== i);
-
+                            // La foto de esta iteración queda primero para que cada publicación tenga una portada distinta.
+                            const allPhotos = publishMode === 'single'
+                                ? [currentPhoto]
+                                : [currentPhoto, ...uploadedPhotos.filter((_, photoIndex) => photoIndex !== i)];
+                            const allOriginals = publishMode === 'single'
+                                ? [currentOrig]
+                                : [currentOrig, ...uploadedOriginals.filter((_, photoIndex) => photoIndex !== i)];
                             productsToInsert.push({
                                 ...baseProductData,
-                                fotos: [currentPhoto, ...otherPhotos],
-                                fotos_originales: [currentOrig, ...otherOrigs]
+                                fotos: allPhotos,
+                                fotos_originales: allOriginals
                             });
                         }
                         const { error } = await supabaseClient.from('productos').insert(productsToInsert);
@@ -1402,11 +1611,15 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 }
 
                 closeProductModal();
-                fetchProductsData();
+                await fetchProductsData({ preserveView: true, revealCount: savedProductCount });
                 alert(editId ? '¡Producto actualizado exitosamente!' : '¡Producto(s) creado(s) exitosamente!');
 
             } catch (err) {
                 console.warn("Fallo en Supabase, guardando localmente:", err);
+                if (!baseProductData) {
+                    alert(`No se pudo preparar el producto: ${err?.message || 'Error inesperado.'}`);
+                    return;
+                }
                 if (editId) {
                     const idx = allProducts.findIndex(p => p.id == editId);
                     if (idx >= 0) {
@@ -1420,17 +1633,22 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 } else {
                     const photosCount = tempBase64Photos.length;
                     if (photosCount > 1) {
+                        const publishMode = selectedPublishMode;
                         for (let i = 0; i < photosCount; i++) {
                             const currentPhoto = tempBase64Photos[i];
                             const currentOrig = tempOriginalPhotos[i] || currentPhoto;
-                            const otherPhotos = tempBase64Photos.filter((_, idx) => idx !== i);
-                            const otherOrigs = tempOriginalPhotos.filter((_, idx) => idx !== i);
-
+                            // Mantiene el mismo orden de portada también en el guardado local de respaldo.
+                            const allPhotos = publishMode === 'single'
+                                ? [currentPhoto]
+                                : [currentPhoto, ...tempBase64Photos.filter((_, photoIndex) => photoIndex !== i)];
+                            const allOriginals = publishMode === 'single'
+                                ? [currentOrig]
+                                : [currentOrig, ...tempOriginalPhotos.filter((_, photoIndex) => photoIndex !== i)];
                             allProducts.push({
                                 ...baseProductData,
                                 id: 'loc_' + Date.now() + '_' + i,
-                                fotos: [currentPhoto, ...otherPhotos],
-                                fotos_originales: [currentOrig, ...otherOrigs]
+                                fotos: allPhotos,
+                                fotos_originales: allOriginals
                             });
                         }
                     } else {
@@ -1444,13 +1662,23 @@ const SUPABASE_URL = 'https://lkdxtesgwqoizobxaawp.supabase.co';
                 }
                 localStorage.setItem('cupissa_local_products', JSON.stringify(allProducts));
                 closeProductModal();
-                fetchProductsData();
-                alert('Guardado en modo local debido a una falla en Supabase.');
+                if (typeof window.filterAdminProductsTable === 'function') {
+                    window.filterAdminProductsTable({ preserveView: true, revealCount: savedProductCount });
+                } else {
+                    filteredProducts = [...allProducts];
+                    renderProductsTable();
+                }
+                renderSugerenciasCampos();
+                alert(`Supabase no pudo guardar el producto: ${err?.message || 'Error desconocido'}. Se conservó una copia local en este navegador.`);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalBtnHTML;
             }
         }
+
+        // Exposición explícita para el formulario modular reconstruido por admin-enhancements.js.
+        // Evita depender de la resolución implícita de funciones globales desde atributos HTML.
+        window.handleSaveProduct = handleSaveProduct;
 
         async function deleteProduct(prodId) {
             if (!confirm('¿Eliminar producto?')) return;

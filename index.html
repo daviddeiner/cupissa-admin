@@ -2,12 +2,16 @@
 <html lang="es" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#111827">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="ADMIN">
+    <link rel="manifest" href="manifest.webmanifest">
     <title>CUPISSA ADMIN</title>
     
     <link rel="shortcut icon" href="favicon.png" type="image/png">
     <link rel="icon" href="favicon.png" type="image/png">
-    <link rel="apple-touch-icon" href="favicon.png">
+    <link rel="apple-touch-icon" href="admin-icon-192.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -47,7 +51,8 @@
     <!-- CryptoJS Librería para la comparación estricta/Hash de imágenes -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <link rel="stylesheet" href="assets/css/admin-web.css">
+    <link rel="stylesheet" href="assets/css/admin-web.css?v=20261106-3">
+    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261106-3">
     <style>
         .fuchsia-btn { background-color: #db2777; color: white; }
         .fuchsia-btn:hover { background-color: #be185d; }
@@ -91,7 +96,24 @@
                     <span>Acceder al Panel</span>
                     <i class="fa-solid fa-arrow-right"></i>
                 </button>
+                <div id="admin-supabase-config-notice" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3 text-left">
+                    <p class="text-[11px] leading-relaxed text-amber-900">La conexión con Supabase necesita una clave pública del proyecto. El correo y la contraseña de Authentication son datos distintos.</p>
+                    <button type="button" onclick="openSupabaseConfig()" class="mt-2 text-xs font-black text-pink-700 underline">Configurar conexión</button>
+                </div>
+                <button type="button" onclick="openSupabaseConfig()" class="w-full text-[10px] font-bold text-slate-500 hover:text-pink-700">Configurar / cambiar conexión de Supabase</button>
             </form>
+            <div id="admin-supabase-config-panel" class="hidden border-t border-slate-100 bg-slate-50 p-5 text-left space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-sm font-black text-slate-800">Conexión de Supabase</h3>
+                    <button type="button" onclick="closeSupabaseConfig()" class="text-slate-400 hover:text-slate-700" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <p class="text-[10px] leading-relaxed text-slate-600">Copia la clave <strong>Publishable</strong> del proyecto CUPISSA. También se acepta la clave antigua <strong>anon</strong>. No uses <strong>Secret</strong> ni <strong>service_role</strong>.</p>
+                <label for="admin-supabase-public-key" class="block text-[10px] font-black uppercase text-slate-600">Clave pública publishable / anon</label>
+                <input id="admin-supabase-public-key" type="password" autocomplete="off" spellcheck="false" placeholder="sb_publishable_…" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-mono">
+                <p id="admin-supabase-config-error" class="hidden rounded-lg bg-rose-50 p-2 text-[10px] text-rose-700"></p>
+                <a href="https://supabase.com/dashboard/project/lkdxtesgwqoizobxaawp/settings/api-keys" target="_blank" rel="noopener noreferrer" class="inline-block text-[10px] font-bold text-pink-700 underline">Abrir claves API del proyecto CUPISSA</a>
+                <button type="button" onclick="saveSupabasePublicKey(event)" class="w-full rounded-xl fuchsia-btn px-4 py-3 text-xs font-black">Guardar conexión</button>
+            </div>
         </div>
     </div>
 
@@ -99,17 +121,22 @@
     <header class="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
-                <div class="flex items-center space-x-6">
-                    <img src="logo.png" alt="CUPISSA" class="h-12 w-auto object-contain">
+                <div class="flex items-center gap-5">
+                    <div class="flex flex-col items-start gap-1.5">
+                        <img src="logo.png" alt="CUPISSA" class="h-10 sm:h-11 w-auto object-contain">
+                        <button id="install-admin-app" type="button" class="admin-install-button">
+                            <i class="fa-solid fa-download"></i><span>Descargar aplicación</span>
+                        </button>
+                    </div>
                     
                     <nav class="hidden sm:flex space-x-2">
-                        <button onclick="switchTab('creditos')" id="tab-btn-creditos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all bg-pink-50 fuchsia-text border border-pink-200">
-                            <i class="fa-solid fa-credit-card mr-1.5"></i> Créditos y Clientes
+                        <button onclick="switchTab('clientes')" id="tab-btn-creditos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all bg-pink-50 fuchsia-text border border-pink-200">
+                            <i class="fa-solid fa-users mr-1.5"></i> Clientes y créditos
                         </button>
                         <button onclick="switchTab('catalogo')" id="tab-btn-catalogo" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100">
                             <i class="fa-solid fa-boxes-packing mr-1.5"></i> Catálogo de Productos
                         </button>
-                        <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-1.5"></i> Clientes</button>
+                        <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes" class="hidden px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-1.5"></i> Clientes web</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
                     </nav>
                 </div>
@@ -126,9 +153,9 @@
 
     <!-- NAVEGACIÓN MÓVIL PESTAÑAS -->
     <div class="sm:hidden bg-white border-b border-slate-100 p-2 flex justify-center space-x-2">
-        <button onclick="switchTab('creditos')" id="tab-btn-creditos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text">Créditos</button>
+        <button onclick="switchTab('clientes')" id="tab-btn-creditos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text">Clientes</button>
         <button onclick="switchTab('catalogo')" id="tab-btn-catalogo-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Catálogo</button>
-        <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Clientes</button>
+        <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes-mob" class="hidden flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Clientes web</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
     </div>
 
@@ -153,7 +180,9 @@
                 </div>
             </div>
 
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div id="admin-credit-load-error" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900" role="status" aria-live="polite"></div>
+
+            <div id="admin-credit-search-panel" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div class="relative w-full sm:w-80">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs">
                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -210,7 +239,7 @@
             </div>
 
             <!-- BUSCADOR INTELIGENTE DE PRODUCTOS -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div id="admin-product-search-panel" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div class="relative w-full sm:w-80">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs">
                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -244,43 +273,26 @@
                 <p id="featured-season-admin-status" class="text-[11px] text-slate-500" role="status" aria-live="polite">Leyendo temporadas guardadas en el catálogo de productos.</p>
             </section>
 
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-6 space-y-4">
-                <h3 class="font-black text-slate-900 text-sm uppercase">Productos Registrados en el Catálogo</h3>
-                <div class="overflow-x-auto custom-scrollbar">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
-                            <tr>
-                                <th class="p-3">FOTO</th>
-                                <th class="p-3">PRODUCTO</th>
-                                <th class="p-3">MUNDO</th>
-                                <th class="p-3">CATEGORÍA / TEMPORADA</th>
-                                <th class="p-3">PRECIO DETAL</th>
-                                <th class="p-3">PRECIO MAYORISTA</th>
-                                <th class="p-3">% ANTICIPO</th>
-                                <th class="p-3 text-center">ACCIONES</th>
-                            </tr>
-                        </thead>
-                        <tbody id="products-tbody" class="divide-y divide-slate-100"></tbody>
-                    </table>
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+                    <h3 class="font-black text-slate-900 text-sm uppercase">Productos del catálogo</h3>
+                    <span id="product-list-count" class="text-[11px] text-slate-400 font-semibold">Cargando productos...</span>
                 </div>
-                <div class="pt-2 flex items-center justify-between text-xs">
-                    <span id="products-pagination-info" class="text-slate-500 font-semibold">Mostrando 0 de 0</span>
-                    <div class="space-x-2">
-                        <button onclick="changeProductsPage(-1)" id="btn-prev-products" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Anterior</button>
-                        <button onclick="changeProductsPage(1)" id="btn-next-products" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Siguiente</button>
-                    </div>
+                <div id="products-list" class="divide-y divide-slate-100" aria-live="polite">
+                    <div class="p-8 text-center text-slate-400 text-xs">Cargando productos...</div>
                 </div>
+                <div id="products-scroll-sentinel" class="h-12 flex items-center justify-center text-[11px] text-slate-400" aria-live="polite">Desplázate para ver más productos</div>
             </div>
         </div>
 
         <!-- SECCIÓN WEB: CLIENTES REGISTRADOS DESDE EL PERFIL CUPISSA -->
         <section id="tab-section-web-clientes" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div><h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-users fuchsia-text mr-2"></i>Clientes</h2><p class="text-xs text-slate-400 mt-1">Datos de las cuentas creadas desde la página de clientes.</p></div>
-                <div class="text-xs text-slate-500 font-semibold">Clientes web: <strong id="web-clients-total" class="fuchsia-text font-black">0</strong></div>
+                <div><h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-users fuchsia-text mr-2"></i>Clientes web</h2><p class="text-xs text-slate-400 mt-1">Ficha completa y administración de datos de clientes registrados desde la tienda.</p></div>
+                <div class="flex items-center gap-3"><div class="text-xs text-slate-500 font-semibold">Clientes web: <strong id="web-clients-total" class="fuchsia-text font-black">0</strong></div><button type="button" onclick="openCreateWebClient()" class="px-4 py-3 fuchsia-btn rounded-xl text-xs font-black"><i class="fa-solid fa-user-plus mr-1"></i> Nuevo cliente</button></div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><input id="web-client-search" oninput="filterWebClients()" type="search" placeholder="Buscar por nombre, teléfono, correo o ciudad..." class="w-full sm:max-w-md px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500"></div>
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left text-xs min-w-[1050px]"><thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">NOMBRES</th><th class="p-4">APELLIDOS</th><th class="p-4">TELÉFONO</th><th class="p-4">CORREO</th><th class="p-4">DIRECCIÓN</th><th class="p-4">BARRIO</th><th class="p-4">CIUDAD</th><th class="p-4">ACCIONES</th></tr></thead><tbody id="web-clients-tbody" class="divide-y divide-slate-100"><tr><td colspan="8" class="p-6 text-center text-slate-400">Cargando clientes...</td></tr></tbody></table></div></div>
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left text-xs min-w-[1050px]"><thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">NOMBRES</th><th class="p-4">APELLIDOS</th><th class="p-4">CÉDULA</th><th class="p-4">TELÉFONO</th><th class="p-4">CORREO</th><th class="p-4">DIRECCIÓN</th><th class="p-4">BARRIO</th><th class="p-4">CIUDAD</th><th class="p-4">ACCIONES</th></tr></thead><tbody id="web-clients-tbody" class="divide-y divide-slate-100"><tr><td colspan="9" class="p-6 text-center text-slate-400">Cargando clientes...</td></tr></tbody></table></div></div>
         </section>
 
         <!-- SECCIÓN WEB: PEDIDOS DE CLIENTES -->
@@ -288,6 +300,23 @@
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div><h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-truck-fast fuchsia-text mr-2"></i>Pedidos</h2><p class="text-xs text-slate-400 mt-1">Ventas y alquileres registrados para los clientes CUPISSA.</p></div>
                 <button type="button" onclick="openNewWebOrder()" class="px-5 py-3 fuchsia-btn rounded-2xl text-xs font-black shadow-md"><i class="fa-solid fa-plus mr-1"></i> Nuevo pedido</button>
+            </div>
+            <div id="web-orders-dashboard" class="admin-orders-dashboard space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-3">
+                    <article class="admin-order-kpi"><span>TOTAL PEDIDOS (MES)</span><strong id="orders-kpi-month-count" class="text-white">0</strong></article>
+                    <article class="admin-order-kpi"><span>PEDIDOS DE HOY</span><strong id="orders-kpi-today" class="admin-kpi-pink">0</strong></article>
+                    <article class="admin-order-kpi"><span>PEDIDOS EN CAMINO</span><strong id="orders-kpi-transit" class="admin-kpi-yellow">0</strong></article>
+                    <article class="admin-order-kpi"><span>PEDIDOS ENTREGADOS (MES)</span><strong id="orders-kpi-delivered" class="admin-kpi-green">0</strong></article>
+                    <article class="admin-order-kpi"><span>VENTAS DEL MES</span><strong id="orders-kpi-sales" class="admin-kpi-pink">$0</strong></article>
+                    <article class="admin-order-kpi"><span>TOTAL A COBRAR (MES)</span><strong id="orders-kpi-balance" class="admin-kpi-green">$0</strong></article>
+                </div>
+                <div class="admin-orders-filters">
+                    <label><span>FILTRAR MES</span><input id="web-order-month" type="month" onchange="filterWebOrders()"></label>
+                    <label><span>FILTRAR DÍA</span><input id="web-order-day" type="date" onchange="filterWebOrders()"></label>
+                    <label><span>FILTRAR ESTADO</span><select id="web-order-status-filter" onchange="filterWebOrders()"><option value="">Todos los estados</option><option value="AGENDADO">Agendado</option><option value="EN FABRICACIÓN">En fabricación</option><option value="EN DEPARTAMENTO DE DESPACHO">En departamento de despacho</option><option value="EN CAMINO">En camino</option><option value="ENTREGADO">Entregado</option><option value="CANCELADO">Cancelado</option></select></label>
+                    <button type="button" onclick="clearWebOrderFilters()" class="admin-orders-clear"><i class="fa-solid fa-rotate-left mr-1"></i> Limpiar</button>
+                    <p class="admin-orders-filter-note">El filtro de día utiliza la fecha de creación del pedido. Los valores de ventas y cobro excluyen pedidos cancelados.</p>
+                </div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3">
                 <div class="flex-1"><label for="max-orders-per-day" class="block text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Cantidad máxima de pedidos de venta por día</label><div class="flex items-center gap-2"><input id="max-orders-per-day" type="number" min="1" max="500" step="1" value="20" class="w-28 px-3 py-2 rounded-xl border border-slate-200 text-sm font-black"><button id="save-daily-capacity" type="button" onclick="saveDailyCapacity()" class="px-4 py-2 rounded-xl fuchsia-btn text-xs font-black"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar límite</button><strong id="daily-capacity-current" class="text-xs fuchsia-text">20 pedidos por día</strong></div><p id="daily-capacity-note" class="text-[10px] text-slate-400 mt-2">Cuando se complete este número de pedidos de venta para una fecha, el calendario dejará de ofrecerla.</p></div>
@@ -435,7 +464,7 @@
             <div class="border-b border-slate-100 pb-4">
                 <h3 id="product-modal-title" class="text-xl font-black text-pink-600 flex items-center space-x-2">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Configuración Inteligente de Producto Web</span>
+                    <span>Nuevo producto · CUPISSA STUDIO</span>
                 </h3>
             </div>
 
@@ -591,11 +620,30 @@
                     <div id="list-accesorios-tags" class="flex flex-wrap gap-2 pt-1"></div>
                 </div>
 
-                <div class="border border-slate-200 rounded-2xl p-4 space-y-3 bg-white">
-                    <label class="block font-bold text-slate-700 uppercase">Fotos del Producto (Cada foto generará un producto independiente)</label>
+                <div class="border border-slate-200 rounded-2xl p-4 space-y-3 bg-white product-photo-dropzone">
+                    <label class="block font-bold text-slate-700 uppercase">Fotografías del producto (puedes seleccionar varias)</label>
                     <input type="file" id="prod-files-input" multiple accept="image/*" onchange="handleImageFilesSelected(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-pink-50 file:text-pink-600 hover:file:bg-pink-100">
-                    <p class="text-[11px] text-slate-400">Si subes varias fotos, al crear un nuevo producto se creará un producto independiente por cada foto con portada distinta.</p>
+                    <p class="text-[11px] text-slate-500">Puedes cargar varias fotos, recortarlas y decidir cómo crear las publicaciones.</p>
                     <div id="files-preview-container" class="flex flex-wrap gap-3 pt-2"></div>
+                    <div id="product-publish-modes" class="product-publish-mode-panel" data-photo-count="0">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-xs font-black uppercase tracking-wide text-slate-800">¿Cómo deseas publicar estas fotografías?</p>
+                            <span data-publish-count class="text-[10px] font-semibold text-slate-500">Selecciona al menos 2 fotos para habilitar las opciones.</span>
+                        </div>
+                        <div class="admin-publish-modes">
+                            <button type="button" data-publish-mode="single" aria-pressed="false" aria-disabled="true" disabled onclick="window.setProductPublishMode && window.setProductPublishMode('single')" class="admin-publish-mode">
+                                <span class="admin-publish-radio" aria-hidden="true"></span>
+                                <strong><i class="fa-solid fa-images mr-1"></i> PUBLICAR PRODUCTOS POR SEPARADO</strong>
+                                <small>Una foto por publicación. Cada foto crea un producto independiente con los mismos datos, precios y variaciones, pero guarda únicamente su propia fotografía.</small>
+                            </button>
+                            <button type="button" data-publish-mode="gallery" aria-pressed="false" aria-disabled="true" disabled onclick="window.setProductPublishMode && window.setProductPublishMode('gallery')" class="admin-publish-mode">
+                                <span class="admin-publish-radio" aria-hidden="true"></span>
+                                <strong><i class="fa-solid fa-layer-group mr-1"></i> PUBLICAR PRODUCTOS JUNTOS</strong>
+                                <small>Una publicación por cada foto como portada. Cada publicación tendrá su perfil y contendrá todas las fotos en su galería.</small>
+                            </button>
+                        </div>
+                        <p class="text-[10px] font-semibold text-slate-500 mt-2">Cuando haya 2 o más fotos, elige una de estas modalidades antes de guardar.</p>
+                    </div>
                 </div>
 
                 <div class="flex items-center space-x-3 pt-3 border-t border-slate-100">
@@ -634,7 +682,10 @@
         </div>
     </div>
 
+    <script src="assets/js/00-config.js"></script>
     <script src="assets/js/admin-core.js"></script>
-    <script src="assets/js/admin-web.js"></script>
+    <script src="assets/js/admin-web.js?v=20261106-3"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261106-3"></script>
+    <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
 </body>
 </html>

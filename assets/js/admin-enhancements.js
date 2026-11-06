@@ -462,7 +462,7 @@
       const label = photoPanel.querySelector('label');
       if (label) label.textContent = 'FOTOGRAFÍAS DEL PRODUCTO (PUEDES SELECCIONAR VARIAS)';
       const hint = photoPanel.querySelector('p');
-      if (hint) hint.textContent = 'Arrastra imágenes aquí, selecciónalas o pégalas desde el portapapeles. Puedes recortar cada foto antes de guardar.';
+      if (hint) hint.textContent = 'Arrastra imágenes aquí, selecciónalas o pégalas desde el portapapeles. Recorta libremente, sin formato cuadrado, o conserva la foto completa.';
       const pasteHelp = document.createElement('p');
       pasteHelp.className = 'text-[10px] text-slate-400 mt-2';
       pasteHelp.innerHTML = '<i class="fa-regular fa-paste mr-1"></i> También puedes copiar una imagen y pegarla aquí con Ctrl + V.';
@@ -601,7 +601,7 @@
     $('cropper-counter').textContent = `${pendingImageQueue.length} imagen(es) pendiente(s)`;
     if (currentCropper) { currentCropper.destroy(); currentCropper = null; }
     image.onload = () => {
-      currentCropper = new Cropper(image, { aspectRatio: 1, viewMode: 2, autoCropArea: .92, responsive: true, background: false });
+      currentCropper = new Cropper(image, { aspectRatio: NaN, viewMode: 2, autoCropArea: .92, responsive: true, background: false });
     };
     image.onerror = () => {
       alert('No fue posible abrir esta fotografía.');
@@ -644,7 +644,7 @@
     const item = pendingImageQueue[0];
     let result = item.original;
     if (!skip && currentCropper) {
-      const canvas = currentCropper.getCroppedCanvas({ width: 1000, height: 1000, imageSmoothingQuality: 'high' });
+      const canvas = currentCropper.getCroppedCanvas({ imageSmoothingQuality: 'high' });
       if (canvas) result = canvas.toDataURL('image/jpeg', .9);
     }
     pendingImageQueue.shift();
@@ -741,7 +741,7 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'admin-photo-preview';
       const image = document.createElement('img'); image.src = src; image.alt = `Foto ${index + 1} del producto`;
-      image.className = 'w-20 h-20 object-cover rounded-xl border border-slate-200';
+      image.className = 'w-20 h-20 object-contain rounded-xl border border-slate-200 bg-slate-50';
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 text-[10px] font-black';
       remove.textContent = '×'; remove.title = 'Quitar fotografía'; remove.addEventListener('click', () => window.removeTempPhoto(index));
       wrapper.append(image, remove);

@@ -1486,8 +1486,23 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 }
             }
             const selectedPublishMode = window.CUPISSA_PRODUCT_PUBLISH_MODE;
-            if (!editId && tempBase64Photos.length > 1 && !['single', 'gallery'].includes(selectedPublishMode)) {
-                alert('Selecciona cómo deseas publicar las fotografías: productos por separado (una foto cada uno) o productos juntos (todas las fotos en cada galería).');
+            const colorPhotoSources = (Array.isArray(tempColores) ? tempColores : []).map(color =>
+                typeof color === 'string' ? '' : String(color?.foto || color?.imagen || color?.imagen_url || '').trim()
+            );
+            const sourcePhotoCount = new Set([
+                ...(Array.isArray(tempBase64Photos) ? tempBase64Photos : []),
+                ...colorPhotoSources
+            ].filter(Boolean)).size;
+
+            if (!editId && sourcePhotoCount === 0) {
+                window.showProductStep?.(2);
+                alert('Agrega al menos una foto del producto o asigna una foto a uno de sus colores.');
+                document.getElementById('product-publish-modes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            if (!editId && sourcePhotoCount > 1 && !['single', 'gallery'].includes(selectedPublishMode)) {
+                window.showProductStep?.(2);
+                alert('Selecciona cómo deseas publicar las fotografías principales, incluidas las fotos de colores: por separado o juntas en una galería.');
                 document.getElementById('product-publish-modes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
@@ -1539,14 +1554,37 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 const uploadedColors = [];
                 for (const color of tempColores) {
                     const normalizedColor = typeof color === 'string' ? { nombre: color, incremento: 0 } : { ...color };
-                    let colorPhoto = normalizedColor.foto || normalizedColor.imagen || '';
+                    let colorPhoto = normalizedColor.foto || normalizedColor.imagen || normalizedColor.imagen_url || '';
+                    let colorPhotoOriginal = normalizedColor.foto_original || normalizedColor.original || colorPhoto;
                     if (colorPhoto.startsWith('data:')) colorPhoto = await uploadBase64ToStorage(colorPhoto);
+                    if (colorPhotoOriginal.startsWith('data:')) colorPhotoOriginal = await uploadBase64ToStorage(colorPhotoOriginal);
                     uploadedColors.push({
                         nombre: String(normalizedColor.nombre || '').trim(),
                         incremento: Math.max(0, Number(normalizedColor.incremento || normalizedColor.adicional || 0)),
-                        foto: colorPhoto
+                        foto: colorPhoto,
+                        foto_original: colorPhotoOriginal || colorPhoto
                     });
                 }
+
+                // La galería principal se compone de las fotos generales y de las fotos asignadas a colores.
+                // Cada entrada mantiene su original para la vista ampliada del catálogo.
+                const galleryPhotoEntries = [];
+                const seenGalleryPhotos = new Set();
+                const addGalleryPhoto = (photo, original = photo) => {
+                    const finalPhoto = String(photo || '').trim();
+                    if (!finalPhoto || seenGalleryPhotos.has(finalPhoto)) return;
+                    seenGalleryPhotos.add(finalPhoto);
+                    galleryPhotoEntries.push({
+                        photo: finalPhoto,
+                        original: String(original || finalPhoto).trim() || finalPhoto
+                    });
+                };
+                uploadedPhotos.forEach((photo, index) => {
+                    addGalleryPhoto(photo, uploadedOriginals[index] || photo);
+                });
+                uploadedColors.forEach(color => {
+                    if (color.foto) addGalleryPhoto(color.foto, color.foto_original || color.foto);
+                });
 
                 baseProductData = {
                     nombre: document.getElementById('prod-nombre').value.trim(),
@@ -1573,35 +1611,36 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     accesorios: uploadedAccessories
                 };
 
+                const allGalleryPhotos = galleryPhotoEntries.map(entry => entry.photo);
+                const allGalleryOriginals = galleryPhotoEntries.map(entry => entry.original);
+
                 if (editId) {
                     const singleData = {
                         ...baseProductData,
-                        fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
-                        fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : (uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage])
+                        fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : [defaultImage],
+                        fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : [defaultImage]
                     };
                     const { error } = await supabaseClient.from('productos').update(singleData).eq('id', editId);
                     if (error) throw error;
                 } else {
-                    const photosCount = uploadedPhotos.length;
+                    const photosCount = galleryPhotoEntries.length;
                     savedProductCount = photosCount > 1 ? photosCount : 1;
-                    
+
                     if (photosCount > 1) {
                         const productsToInsert = [];
                         const publishMode = selectedPublishMode;
                         for (let i = 0; i < photosCount; i++) {
-                            const currentPhoto = uploadedPhotos[i];
-                            const currentOrig = uploadedOriginals[i] || currentPhoto;
-                            // La foto de esta iteración queda primero para que cada publicación tenga una portada distinta.
-                            const allPhotos = publishMode === 'single'
-                                ? [currentPhoto]
-                                : [currentPhoto, ...uploadedPhotos.filter((_, photoIndex) => photoIndex !== i)];
-                            const allOriginals = publishMode === 'single'
-                                ? [currentOrig]
-                                : [currentOrig, ...uploadedOriginals.filter((_, photoIndex) => photoIndex !== i)];
+                            const orderedEntries = [
+                                galleryPhotoEntries[i],
+                                ...galleryPhotoEntries.filter((_, photoIndex) => photoIndex !== i)
+                            ];
+                            const selectedEntries = publishMode === 'single'
+                                ? [orderedEntries[0]]
+                                : orderedEntries;
                             productsToInsert.push({
                                 ...baseProductData,
-                                fotos: allPhotos,
-                                fotos_originales: allOriginals
+                                fotos: selectedEntries.map(entry => entry.photo),
+                                fotos_originales: selectedEntries.map(entry => entry.original)
                             });
                         }
                         const { error } = await supabaseClient.from('productos').insert(productsToInsert);
@@ -1609,8 +1648,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     } else {
                         const singleData = {
                             ...baseProductData,
-                            fotos: uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage],
-                            fotos_originales: uploadedOriginals.length > 0 ? uploadedOriginals : (uploadedPhotos.length > 0 ? uploadedPhotos : [defaultImage])
+                            fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : [defaultImage],
+                            fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : [defaultImage]
                         };
                         const { error } = await supabaseClient.from('productos').insert([singleData]);
                         if (error) throw error;
@@ -1628,8 +1667,12 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     const pendingDraft = {
                         ...baseProductData,
                         id: editId || null,
-                        fotos: tempBase64Photos.length > 0 ? tempBase64Photos : [defaultImage],
-                        fotos_originales: tempOriginalPhotos.length > 0 ? tempOriginalPhotos : [defaultImage],
+                        fotos: [...(Array.isArray(tempBase64Photos) ? tempBase64Photos : []), ...colorPhotoSources].filter(Boolean).length
+                            ? [...new Set([...(Array.isArray(tempBase64Photos) ? tempBase64Photos : []), ...colorPhotoSources].filter(Boolean))]
+                            : [defaultImage],
+                        fotos_originales: [...new Set([...(Array.isArray(tempOriginalPhotos) ? tempOriginalPhotos : []), ...colorPhotoSources].filter(Boolean))].length
+                            ? [...new Set([...(Array.isArray(tempOriginalPhotos) ? tempOriginalPhotos : []), ...colorPhotoSources].filter(Boolean))]
+                            : [defaultImage],
                         pendiente_supabase: true,
                         guardado_local_en: new Date().toISOString()
                     };

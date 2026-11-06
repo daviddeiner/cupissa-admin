@@ -664,11 +664,12 @@
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="font-black text-slate-900 text-sm uppercase flex items-center space-x-2">
                     <i class="fa-solid fa-crop fuchsia-text"></i>
-                    <span>Recortar Foto para el Catálogo</span>
+                    <span>Recorte libre para el Catálogo</span>
                 </h3>
                 <span id="cropper-counter" class="text-xs font-bold fuchsia-text">Foto 1 de 1</span>
             </div>
 
+            <p class="text-[11px] text-slate-500">Ajusta el marco a cualquier ancho o alto. No se fuerza un recorte cuadrado; también puedes omitir el recorte para conservar la imagen completa.</p>
             <div class="max-h-[60vh] overflow-hidden bg-slate-900 rounded-2xl flex items-center justify-center">
                 <img id="image-to-crop" src="" alt="Para recortar" class="max-h-[50vh] block max-w-full">
             </div>
@@ -677,16 +678,16 @@
                 <button type="button" onclick="skipCurrentPhotoCrop()" class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs">Omitir recorte</button>
                 <button type="button" onclick="confirmCropPhoto()" class="px-6 py-2.5 fuchsia-btn font-black rounded-xl text-xs shadow-md flex items-center space-x-2">
                     <i class="fa-solid fa-check"></i>
-                    <span>Confirmar y Agregar Recorte</span>
+                    <span>Confirmar y Agregar Imagen</span>
                 </button>
             </div>
         </div>
     </div>
 
     <script src="assets/js/00-config.js"></script>
-    <script src="assets/js/admin-core.js?v=20261106-6"></script>
+    <script src="assets/js/admin-core.js?v=20261106-7"></script>
     <script src="assets/js/admin-web.js?v=20261106-5"></script>
-    <script src="assets/js/admin-enhancements.js?v=20261106-6"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261106-7"></script>
     <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
 </body>
 </html>

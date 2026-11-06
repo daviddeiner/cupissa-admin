@@ -1,0 +1,16 @@
+{
+  "id": "./?app=admin",
+  "name": "ADMIN | CUPISSA",
+  "short_name": "ADMIN",
+  "description": "Aplicación de administración CUPISSA",
+  "start_url": "./?app=admin",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "admin-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "admin-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

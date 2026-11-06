@@ -118,14 +118,6 @@
     const part = type => parts.find(item => item.type === type)?.value || '';
     return `${part('year')}-${part('month')}-${part('day')}`;
   }
-  function orderDateKey(order) {
-    const raw = order?.created_at || order?.fecha_pedido || order?.fecha_creacion || order?.createdAt || '';
-    if (!raw) return '';
-    const value = String(raw).trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '' : bogotaDateKey(date);
-  }
   function deliveryDateKey(order) {
     const raw = order?.fecha_entrega || order?.fecha_entrega_programada || order?.delivery_date || '';
     if (!raw) return '';
@@ -150,13 +142,13 @@
   function renderOrdersDashboard() {
     const month = $('web-order-month')?.value || bogotaDateKey().slice(0, 7);
     const today = bogotaDateKey();
-    const monthOrders = webOrders.filter(order => orderDateKey(order).slice(0, 7) === month);
+    const monthOrders = webOrders.filter(order => deliveryDateKey(order).slice(0, 7) === month);
     const nonCancelledMonthOrders = monthOrders.filter(order => normalizeOrderStatus(order.estado) !== 'CANCELADO');
     const pendingChargeMonthOrders = nonCancelledMonthOrders.filter(order => normalizeOrderStatus(order.estado) !== 'ENTREGADO');
     const count = (id, value) => { const node = $(id); if (node) node.textContent = String(value); };
     const money = value => '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits:0 }).format(Number(value || 0));
     count('orders-kpi-month-count', monthOrders.length);
-    // “Pedidos de hoy” se determina exclusivamente por fecha_entrega, no por creación.
+    // Todos los indicadores de periodo se calculan exclusivamente con fecha_entrega.
     count('orders-kpi-today', webOrders.filter(order => deliveryDateKey(order) === today).length);
     count('orders-kpi-transit', webOrders.filter(order => normalizeOrderStatus(order.estado) === 'EN CAMINO').length);
     count('orders-kpi-delivered', monthOrders.filter(order => normalizeOrderStatus(order.estado) === 'ENTREGADO').length);
@@ -172,7 +164,7 @@
     const day = $('web-order-day')?.value || '';
     const state = normalizeOrderStatus($('web-order-status-filter')?.value || '');
     filteredWebOrders = webOrders.filter(order => {
-      const date = orderDateKey(order);
+      const date = deliveryDateKey(order);
       if (month && date.slice(0, 7) !== month) return false;
       if (day && date !== day) return false;
       if (state && normalizeOrderStatus(order.estado) !== state) return false;

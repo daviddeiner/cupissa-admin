@@ -58,12 +58,12 @@
     setupClientWorkspace();
     const normalized = tab === 'creditos' || tab === 'web-clientes' || tab === 'clientes' ? 'clientes'
       : tab === 'catalogo' ? 'catalogo'
-      : tab === 'web-pedidos' ? 'web-pedidos' : 'clientes';
-    ['tab-section-clientes', 'tab-section-catalogo', 'tab-section-web-pedidos'].forEach(id => {
+      : tab === 'web-pedidos' ? 'web-pedidos' : tab === 'alquileres' ? 'alquileres' : 'clientes';
+    ['tab-section-clientes', 'tab-section-catalogo', 'tab-section-web-pedidos', 'tab-section-alquileres'].forEach(id => {
       $(id)?.classList.add('hidden');
     });
     const activeSection = normalized === 'clientes' ? 'tab-section-clientes'
-      : normalized === 'catalogo' ? 'tab-section-catalogo' : 'tab-section-web-pedidos';
+      : normalized === 'catalogo' ? 'tab-section-catalogo' : normalized === 'alquileres' ? 'tab-section-alquileres' : 'tab-section-web-pedidos';
     $(activeSection)?.classList.remove('hidden');
 
     if (tab === 'web-clientes') window.switchClientSubtab('web');
@@ -73,7 +73,7 @@
     }
 
     const activeButton = normalized === 'clientes' ? 'creditos' : normalized;
-    ['creditos', 'catalogo', 'web-pedidos'].forEach(key => {
+    ['creditos', 'catalogo', 'web-pedidos', 'alquileres'].forEach(key => {
       ['', '-mob'].forEach(suffix => {
         const button = $(`tab-btn-${key}${suffix}`);
         if (!button) return;
@@ -85,6 +85,7 @@
         }
       });
     });
+    if (normalized === 'alquileres') window.loadRentalStock?.();
     if (normalized === 'catalogo') {
       window.setupAdminProductsRealtime?.();
       window.fetchProductsData?.({ preserveView: true });
@@ -162,7 +163,12 @@
     visibility.setAttribute('aria-label', visibility.title);
     visibility.innerHTML = isHidden(product) ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
     visibility.addEventListener('click', () => window.toggleProductVisibility(product.id));
-    actions.append(edit, visibility);
+    const remove = document.createElement('button');
+    remove.type = 'button'; remove.className = 'admin-icon-action';
+    remove.title = 'Eliminar producto'; remove.setAttribute('aria-label', 'Eliminar producto');
+    remove.innerHTML = '<i class="fa-solid fa-trash text-red-600"></i>';
+    remove.addEventListener('click', () => window.deleteProduct(product.id));
+    actions.append(edit, visibility, remove);
     row.append(image, main, actions);
     return row;
   }
@@ -211,12 +217,14 @@
     renderProductsInfinite();
   };
 
+  window.deleteProduct = window.deleteProduct || (typeof deleteProduct === 'function' ? deleteProduct : undefined);
+
   window.toggleProductVisibility = async function (id) {
     const product = (Array.isArray(allProducts) ? allProducts : []).find(item => String(item.id) === String(id));
     if (!product) return;
     const nextHidden = !isHidden(product);
     const action = nextHidden ? 'ocultar en la tienda' : 'volver a publicar';
-    if (!confirm(`¿Deseas ${action} “${product.nombre || 'este producto'}”? El cambio se guardará directamente en Supabase.`)) return;
+    if (!(await cupissaConfirm(`¿Deseas ${action} “${product.nombre || 'este producto'}”? El cambio se guardará directamente en Supabase.`))) return;
 
     try {
       if (!supabaseClient) throw new Error('No hay una conexión activa con Supabase.');
@@ -546,6 +554,7 @@
       $('product-publish-modes')?.classList.remove('hidden');
       window.updateProductPublishModeVisibility?.();
       window.renderColorFotoPreview();
+      renderReusableOptions('colores'); renderReusableOptions('accesorios');
       showWizardStep(1);
     };
   }
@@ -557,6 +566,7 @@
       colorPhotoOriginal = '';
       $('product-publish-modes')?.classList.add('hidden');
       window.renderColorFotoPreview();
+      renderReusableOptions('colores'); renderReusableOptions('accesorios');
       showWizardStep(1);
     };
   }
@@ -627,8 +637,15 @@
       window.renderPreviewPhotos();
     } else if (target === 'product-edit') {
       const index = Number(queueItem.index);
+      const oldImage = tempBase64Photos[index];
       tempBase64Photos[index] = cropped;
       tempOriginalPhotos[index] = original;
+      tempColores.forEach(color => {
+        if (color && typeof color === 'object' && color.foto === oldImage) {
+          color.foto = cropped; color.foto_original = original;
+        }
+      });
+      window.renderColoresTags?.();
       window.renderPreviewPhotos();
     } else if (target === 'accessory') {
       tempAccesorioFoto = cropped;
@@ -691,6 +708,43 @@
     preview.appendChild(image); preview.classList.remove('hidden');
   };
 
+  // Plantillas de colores y accesorios reutilizables entre productos.
+  const libraryKeys = { colores: 'cupissa_saved_colors_library', accesorios: 'cupissa_saved_accessories_library' };
+  function savedLibrary(kind) { try { return JSON.parse(localStorage.getItem(libraryKeys[kind]) || '[]'); } catch (_) { return []; } }
+  function saveLibraryItem(kind, item) {
+    const name = String(item?.nombre || '').trim(); if (!name) return;
+    // No almacenar imágenes grandes en base64 dentro de localStorage.
+    const clean = { nombre: name, incremento: Number(item.incremento || 0), foto: String(item.foto || '').startsWith('data:') ? '' : String(item.foto || '') };
+    const data = savedLibrary(kind).filter(i => i.nombre.toLowerCase() !== name.toLowerCase());
+    data.push(clean);
+    try { localStorage.setItem(libraryKeys[kind], JSON.stringify(data)); } catch (e) { console.warn('No se pudo guardar plantilla', e); }
+    renderReusableOptions(kind);
+  }
+  function renderReusableOptions(kind) {
+    const id = kind === 'colores' ? 'list-colores-tags' : 'list-accesorios-tags';
+    const host = $(id)?.parentElement; if (!host) return;
+    let zone = $(`cupissa-library-${kind}`);
+    if (!zone) { zone = document.createElement('div'); zone.id = `cupissa-library-${kind}`; zone.className = 'mt-3 rounded-xl border border-pink-100 bg-white p-3'; host.appendChild(zone); }
+    zone.replaceChildren();
+    const title = document.createElement('div'); title.className = 'text-xs font-black text-slate-700 mb-2'; title.textContent = `Reutilizar ${kind} guardados`;
+    zone.append(title);
+    const row = document.createElement('div'); row.className = 'flex gap-2 flex-wrap';
+    savedLibrary(kind).forEach(item => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-bold text-pink-800';
+      button.textContent = `${item.nombre} (+${new Intl.NumberFormat('es-CO').format(item.incremento || 0)})`;
+      button.onclick = () => {
+        const array = kind === 'colores' ? tempColores : tempAccesorios;
+        if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item });
+        if (kind === 'colores') window.renderColoresTags(); else window.renderAccesoriosTags();
+      };
+      row.append(button);
+    });
+    zone.append(row);
+  }
+  // Registrar automáticamente las opciones en cuanto se agregan a la ficha.
+  window.cupissaSaveAccessoryTemplate = item => saveLibraryItem('accesorios', item);
+  window.cupissaSaveColorTemplate = item => saveLibraryItem('colores', item);
+  const previousAddColor = window.addColorToList;
   window.addColorToList = function () {
     const nameInput = $('inp-color-nombre');
     const incrementInput = $('inp-color-incremento');
@@ -704,6 +758,7 @@
       foto: colorPhoto,
       foto_original: colorPhotoOriginal || colorPhoto
     });
+    saveLibraryItem('colores', tempColores[tempColores.length - 1]);
     if (nameInput) nameInput.value = '';
     if (incrementInput) incrementInput.value = '';
     colorPhoto = '';
@@ -746,6 +801,19 @@
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 text-[10px] font-black';
       remove.textContent = '×'; remove.title = 'Quitar fotografía'; remove.addEventListener('click', () => window.removeTempPhoto(index));
       wrapper.append(image, remove);
+      const replace = document.createElement('button'); replace.type = 'button';
+      replace.className = 'admin-photo-edit'; replace.textContent = 'Cambiar foto'; replace.title = 'Cambiar esta imagen sin quitarla';
+      replace.onclick = () => {
+        const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*';
+        file.onchange = async () => {
+          const selectedFile = file.files?.[0]; if (!selectedFile) return;
+          try { const original = await readImageFile(selectedFile);
+            pendingImageQueue.push({ original, target: 'product-edit', index });
+            if (!currentCropper) startQueuedImageCrop();
+          } catch (error) { alert(error.message || 'No fue posible abrir la imagen'); }
+        }; file.click();
+      };
+      wrapper.appendChild(replace);
       if (String(tempOriginalPhotos[index] || '').startsWith('data:')) {
         const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'admin-photo-edit'; edit.textContent = 'Recortar';
         edit.addEventListener('click', () => {

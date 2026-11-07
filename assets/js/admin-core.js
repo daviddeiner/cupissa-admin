@@ -77,6 +77,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
         let pendingImageQueue = [];
         let currentCropper = null;
+        let adminCreditRealtimeChannel = null;
+        let adminCreditRealtimeTimer = null;
 
         function normalizeCreditStatus(value) {
             return String(value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
@@ -208,7 +210,23 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('admin-login-screen').classList.remove('hidden');
         }
 
+        function subscribeAdminCreditRealtime() {
+            if (!supabaseClient?.channel || adminCreditRealtimeChannel) return;
+            adminCreditRealtimeChannel = supabaseClient
+                .channel('cupissa-admin-creditos-realtime')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'creditos' }, () => {
+                    clearTimeout(adminCreditRealtimeTimer);
+                    adminCreditRealtimeTimer = setTimeout(() => fetchAdminData(), 400);
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clientes' }, () => {
+                    clearTimeout(adminCreditRealtimeTimer);
+                    adminCreditRealtimeTimer = setTimeout(() => fetchAdminData(), 400);
+                })
+                .subscribe();
+        }
+
         async function fetchAdminData() {
+            subscribeAdminCreditRealtime();
             try {
                 const { data: clientes, error: cliError } = await supabaseClient.from('clientes').select('*');
                 if (cliError) throw cliError;
@@ -329,7 +347,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             const nombre = document.getElementById('new-client-name').value.trim();
             const telefono = document.getElementById('new-client-phone').value.trim();
             const cedula = document.getElementById('new-client-cedula').value.trim();
-            const cupoTotal = parseFloat(document.getElementById('new-client-cupo').value) || 0;
+            const cupoTotal = parseFloat(document.getElementById('new-client-cupo').value) || 300000;
             const deudaInicial = parseFloat(document.getElementById('new-client-deuda').value) || 0;
             const fechaVencimiento = document.getElementById('new-client-fecha-inicio').value;
             const frecuencia = document.getElementById('new-client-frecuencia').value;
@@ -637,6 +655,111 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             alert('¡Nueva deuda agregada exitosamente!');
         }
 
+        // ==================== CLASIFICACIÓN MÚLTIPLE DE PRODUCTOS ====================
+        // Las columnas singulares originales se conservan por compatibilidad;
+        // las nuevas columnas en plural almacenan todas las opciones seleccionadas.
+        var productMultiSelections = {
+            mundo: [],
+            categoria: [],
+            subcategoria: [],
+            temporada: []
+        };
+
+        function normalizeProductMultiValues(value, legacyValue = '') {
+            let values = [];
+            if (Array.isArray(value)) {
+                values = value;
+            } else if (typeof value === 'string' && value.trim()) {
+                try {
+                    const parsed = JSON.parse(value);
+                    values = Array.isArray(parsed) ? parsed : [value];
+                } catch (_) {
+                    values = [value];
+                }
+            }
+            if (!values.length && legacyValue != null && String(legacyValue).trim()) values = [legacyValue];
+            const unique = [];
+            values.forEach(item => {
+                const clean = String(item ?? '').trim();
+                if (clean && !unique.some(existing => existing.toLocaleLowerCase('es-CO') === clean.toLocaleLowerCase('es-CO'))) unique.push(clean);
+            });
+            return unique;
+        }
+
+        function productMultiValuesFromRow(product, field) {
+            return normalizeProductMultiValues(product?.[`${field}s`], product?.[field]);
+        }
+
+        function setProductMultiValues(field, values) {
+            productMultiSelections[field] = normalizeProductMultiValues(values);
+            const legacyInput = document.getElementById(`prod-${field}`);
+            if (legacyInput) legacyInput.value = productMultiSelections[field][0] || '';
+            const input = document.getElementById(`prod-${field}-input`);
+            if (input) input.value = '';
+            renderProductMultiField(field);
+        }
+
+        function renderProductMultiField(field) {
+            const container = document.getElementById(`prod-${field}-tags`);
+            const values = productMultiSelections[field] || [];
+            const legacyInput = document.getElementById(`prod-${field}`);
+            if (legacyInput) legacyInput.value = values[0] || '';
+            if (!container) return;
+            container.replaceChildren();
+            values.forEach((value, index) => {
+                const tag = document.createElement('span');
+                tag.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-50 border border-pink-200 text-pink-800 text-[11px] font-bold';
+                const label = document.createElement('span');
+                label.textContent = value;
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'w-4 h-4 rounded-full bg-white text-pink-700 hover:bg-pink-100 font-black leading-none';
+                remove.textContent = '×';
+                remove.setAttribute('aria-label', `Quitar ${value}`);
+                remove.addEventListener('click', () => {
+                    productMultiSelections[field].splice(index, 1);
+                    renderProductMultiField(field);
+                });
+                tag.append(label, remove);
+                container.appendChild(tag);
+            });
+        }
+
+        function addProductMultiValue(field) {
+            if (!Object.prototype.hasOwnProperty.call(productMultiSelections, field)) return;
+            const input = document.getElementById(`prod-${field}-input`);
+            if (!input) return;
+            const raw = input.value.trim();
+            if (!raw) return;
+            raw.split(/[;\n]+/).map(value => value.trim()).filter(Boolean).forEach(candidate => {
+                const value = (field === 'mundo' || field === 'temporada') ? candidate.toLocaleUpperCase('es-CO') : candidate;
+                if (!productMultiSelections[field].some(existing => existing.toLocaleLowerCase('es-CO') === value.toLocaleLowerCase('es-CO'))) {
+                    productMultiSelections[field].push(value);
+                }
+            });
+            input.value = '';
+            renderProductMultiField(field);
+        }
+
+        function handleProductMultiInputKey(event, field) {
+            if (event.key === 'Enter' || event.key === ';') {
+                event.preventDefault();
+                addProductMultiValue(field);
+            }
+        }
+
+        function commitProductMultiInputs() {
+            ['mundo', 'categoria', 'subcategoria', 'temporada'].forEach(field => {
+                const input = document.getElementById(`prod-${field}-input`);
+                if (input && input.value.trim()) addProductMultiValue(field);
+            });
+        }
+        window.commitProductMultiInputs = commitProductMultiInputs;
+
+        function resetProductMultiSelections() {
+            ['mundo', 'categoria', 'subcategoria', 'temporada'].forEach(field => setProductMultiValues(field, []));
+        }
+
         // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
         async function fetchProductsData(options = {}) {
             const preserveView = options?.preserveView === true;
@@ -707,7 +830,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             select.disabled = true;
             if (saveButton) saveButton.disabled = true;
             select.innerHTML = '<option value="">Cargando temporadas desde productos...</option>';
-            status.textContent = 'Consultando los valores existentes de productos.temporada...';
+            status.textContent = 'Consultando los valores existentes de productos.temporadas...';
 
             try {
                 const rows = [];
@@ -716,8 +839,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 while (true) {
                     const { data, error } = await supabaseClient
                         .from('productos')
-                        .select('temporada')
-                        .not('temporada', 'is', null)
+                        .select('temporadas,temporada')
                         .order('temporada', { ascending: true })
                         .range(from, from + pageSize - 1);
                     if (error) throw error;
@@ -726,10 +848,12 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     from += pageSize;
                 }
 
-                const seasons = [...new Set(rows
-                    .map(row => String(row.temporada || '').trim().toUpperCase())
-                    .filter(Boolean))]
-                    .sort((a, b) => a.localeCompare(b, 'es'));
+                const seasonValues = [];
+                rows.forEach(row => {
+                    const values = normalizeProductMultiValues(row.temporadas, row.temporada);
+                    values.forEach(value => seasonValues.push(String(value).trim().toUpperCase()));
+                });
+                const seasons = [...new Set(seasonValues.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
 
                 const { data: setting, error: settingError } = await supabaseClient
                     .from('configuracion_destacados_web')
@@ -764,8 +888,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 }
 
                 status.textContent = seasons.length
-                    ? `${seasons.length} temporada(s) encontrada(s) directamente en productos.temporada. Selecciona una y pulsa “Guardar selección”.`
-                    : 'No hay temporadas escritas en la columna productos.temporada.';
+                    ? `${seasons.length} temporada(s) encontrada(s) en productos.temporadas. Selecciona una y pulsa “Guardar selección”.`
+                    : 'No hay temporadas asignadas a los productos.';
             } catch (error) {
                 console.error('No fue posible cargar las temporadas destacadas:', error);
                 select.innerHTML = '<option value="">No se pudieron cargar las temporadas</option>';
@@ -832,8 +956,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     tr.innerHTML = `
                         <td class="p-3"><img src="${foto}" class="w-10 h-10 object-cover rounded-xl border"></td>
                         <td class="p-3 font-bold">${p.nombre}</td>
-                        <td class="p-3 font-bold uppercase fuchsia-text">${p.mundo}</td>
-                        <td class="p-3">${p.categoria} / <span class="font-bold text-pink-600">${p.temporada}</span></td>
+                        <td class="p-3 font-bold uppercase fuchsia-text">${productMultiValuesFromRow(p, 'mundo').join(' · ') || '—'}</td>
+                        <td class="p-3">${productMultiValuesFromRow(p, 'categoria').join(' · ') || '—'} / <span class="font-bold text-pink-600">${productMultiValuesFromRow(p, 'temporada').join(' · ') || '—'}</span></td>
                         <td class="p-3 font-black">${formatCOP(p.precio_detal)}</td>
                         <td class="p-3">${formatCOP(p.precio_mayorista)}</td>
                         <td class="p-3 font-bold fuchsia-text">${p.porcentaje_anticipo}%</td>
@@ -867,101 +991,28 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         }
 
         function renderSugerenciasCampos() {
-            const mundosSet = new Set();
-            const categoriasSet = new Set();
-            const subcategoriasSet = new Set();
-            const temporadasSet = new Set();
-            // Las sugerencias también se alimentan exclusivamente de registros leídos de Supabase.
-            const seasonProducts = Array.isArray(allProducts) ? [...allProducts] : [];
-
-            allProducts.forEach(p => {
-                if (p.mundo) mundosSet.add(String(p.mundo).trim().toUpperCase());
-                if (p.categoria) categoriasSet.add(p.categoria);
-                if (p.subcategoria) subcategoriasSet.add(p.subcategoria);
-            });
-            seasonProducts.forEach(p => {
-                const season = String(p?.temporada || '').trim().toUpperCase();
-                if (season) temporadasSet.add(season);
-            });
-
-            const sugMundo = document.getElementById('sugerencias-mundo');
-            if (sugMundo) {
-                sugMundo.innerHTML = '';
-                mundosSet.forEach(mundo => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'px-2.5 py-1 bg-pink-50 hover:bg-pink-100 fuchsia-text rounded-lg text-[11px] font-bold border border-pink-200 transition-colors';
-                    btn.innerText = mundo;
-                    btn.onclick = () => { document.getElementById('prod-mundo').value = mundo; };
-                    sugMundo.appendChild(btn);
-                });
-            }
-
-            const sugCat = document.getElementById('sugerencias-categoria');
-            if (sugCat) {
-                sugCat.innerHTML = '';
-                categoriasSet.forEach(cat => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold border border-indigo-200 transition-colors';
-                    btn.innerText = cat;
-                    btn.onclick = () => { document.getElementById('prod-categoria').value = cat; };
-                    sugCat.appendChild(btn);
-                });
-            }
-
-            const sugSubEl = document.getElementById('sugerencias-subcategoria');
-            if (sugSubEl) {
-                sugSubEl.innerHTML = '';
-                subcategoriasSet.forEach(sub => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-200 transition-colors';
-                    btn.innerText = sub;
-                    btn.onclick = () => { document.getElementById('prod-subcategoria').value = sub; };
-                    sugSubEl.appendChild(btn);
-                });
-            }
-
-            const tempSelect = document.getElementById('prod-temporada-existente');
-            const seasonNames = [...temporadasSet].sort((a, b) => a.localeCompare(b, 'es'));
-            const seasonCount = document.getElementById('temporada-count-label');
-            if (seasonCount) seasonCount.textContent = seasonNames.length
-                ? `${seasonNames.length} temporada(s) encontrada(s) en el catálogo de productos.`
-                : 'Todavía no hay temporadas registradas en los productos existentes.';
-            if (tempSelect) {
-                const currentValue = document.getElementById('prod-temporada')?.value?.trim().toUpperCase() || '';
-                tempSelect.innerHTML = '<option value="">ELIGE UNA TEMPORADA EXISTENTE</option>';
-                if (!seasonNames.length) {
-                    const emptyOption = document.createElement('option');
-                    emptyOption.value = '';
-                    emptyOption.textContent = 'No hay temporadas guardadas todavía';
-                    emptyOption.disabled = true;
-                    tempSelect.appendChild(emptyOption);
+            const fields = ['mundo', 'categoria', 'subcategoria', 'temporada'];
+            fields.forEach(field => {
+                const values = new Map();
+                allProducts.forEach(product => productMultiValuesFromRow(product, field).forEach(value => {
+                    const key = value.toLocaleLowerCase('es-CO');
+                    if (!values.has(key)) values.set(key, value);
+                }));
+                const datalist = document.getElementById(`prod-${field}-options`);
+                if (datalist) {
+                    datalist.replaceChildren();
+                    [...values.values()].sort((a, b) => a.localeCompare(b, 'es-CO')).forEach(value => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        datalist.appendChild(option);
+                    });
                 }
-                seasonNames.forEach(temp => {
-                    const option = document.createElement('option');
-                    option.value = temp;
-                    option.textContent = temp;
-                    tempSelect.appendChild(option);
-                });
-                tempSelect.value = seasonNames.includes(currentValue) ? currentValue : '';
-                tempSelect.style.display = 'block';
-                tempSelect.classList.add('w-full', 'min-h-[44px]');
-            }
-
-            const sugTempEl = document.getElementById('sugerencias-temporada');
-            if (sugTempEl) {
-                sugTempEl.innerHTML = '';
-                temporadasSet.forEach(temp => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-[11px] font-bold border border-purple-200 transition-colors';
-                    btn.innerText = temp;
-                    btn.onclick = () => { document.getElementById('prod-temporada').value = temp; };
-                    sugTempEl.appendChild(btn);
-                });
-            }
+                if (field === 'temporada') {
+                    const seasonCount = document.getElementById('temporada-count-label');
+                    if (seasonCount) seasonCount.textContent = `${values.size} temporada(s) disponibles. Puedes asignar varias.`;
+                }
+            });
+            fields.forEach(renderProductMultiField);
         }
 
         // ==================== GESTIÓN INTELIGENTE DE PLANTILLAS DE TALLAS ====================
@@ -1052,6 +1103,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('prod-categoria').value = '';
             document.getElementById('prod-subcategoria').value = '';
             document.getElementById('prod-temporada').value = '';
+            resetProductMultiSelections();
             document.getElementById('prod-precio-detal').value = '0';
             document.getElementById('prod-precio-mayorista').value = '0';
             document.getElementById('prod-cant-min-mayorista').value = '6';
@@ -1092,6 +1144,10 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('prod-categoria').value = prod.categoria || '';
             document.getElementById('prod-subcategoria').value = prod.subcategoria || '';
             document.getElementById('prod-temporada').value = prod.temporada || '';
+            setProductMultiValues('mundo', productMultiValuesFromRow(prod, 'mundo'));
+            setProductMultiValues('categoria', productMultiValuesFromRow(prod, 'categoria'));
+            setProductMultiValues('subcategoria', productMultiValuesFromRow(prod, 'subcategoria'));
+            setProductMultiValues('temporada', productMultiValuesFromRow(prod, 'temporada'));
             document.getElementById('prod-precio-detal').value = prod.precio_detal || 0;
             document.getElementById('prod-precio-mayorista').value = prod.precio_mayorista || 0;
             document.getElementById('prod-cant-min-mayorista').value = prod.cant_min_mayorista || 6;
@@ -1465,6 +1521,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             const productForm = e.currentTarget || e.target || document.querySelector('#modal-product-form form');
             const editId = document.getElementById('prod-edit-id').value;
             let savedProductCount = 0;
+            commitProductMultiInputs();
             const requiredFields = [
                 ['prod-nombre', 'Escribe el título del producto.', 1],
                 ['prod-mundo', 'Selecciona o escribe el mundo.', 1],
@@ -1586,10 +1643,14 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 baseProductData = {
                     nombre: document.getElementById('prod-nombre').value.trim(),
                     descripcion: document.getElementById('prod-descripcion').value.trim(),
-                    mundo: document.getElementById('prod-mundo').value.trim().toUpperCase(),
-                    categoria: document.getElementById('prod-categoria').value.trim(),
-                    subcategoria: document.getElementById('prod-subcategoria').value.trim(),
-                    temporada: document.getElementById('prod-temporada').value.trim().toUpperCase(),
+                    mundo: productMultiSelections.mundo[0] || '',
+                    mundos: [...productMultiSelections.mundo],
+                    categoria: productMultiSelections.categoria[0] || '',
+                    categorias: [...productMultiSelections.categoria],
+                    subcategoria: productMultiSelections.subcategoria[0] || null,
+                    subcategorias: [...productMultiSelections.subcategoria],
+                    temporada: productMultiSelections.temporada[0] || '',
+                    temporadas: [...productMultiSelections.temporada],
                     precio_detal: parseFloat(document.getElementById('prod-precio-detal').value) || 0,
                     precio_mayorista: parseFloat(document.getElementById('prod-precio-mayorista').value) || 0,
                     cant_min_mayorista: parseInt(document.getElementById('prod-cant-min-mayorista').value) || 6,

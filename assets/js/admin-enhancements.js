@@ -647,6 +647,16 @@
       });
       window.renderColoresTags?.();
       window.renderPreviewPhotos();
+    } else if (target === 'option-edit') {
+      const array = queueItem.kind === 'colores' ? tempColores : tempAccesorios;
+      const option = array[Number(queueItem.index)];
+      if (option && typeof option === 'object') {
+        option.foto = cropped;
+        if (queueItem.kind === 'colores') option.foto_original = original;
+        saveLibraryItem(queueItem.kind, option);
+        if (queueItem.kind === 'colores') window.renderColoresTags?.();
+        else window.renderAccesoriosTags?.();
+      }
     } else if (target === 'accessory') {
       tempAccesorioFoto = cropped;
       window.renderAccesorioFotoPreview();
@@ -708,19 +718,50 @@
     preview.appendChild(image); preview.classList.remove('hidden');
   };
 
-  // Plantillas de colores y accesorios reutilizables entre productos.
+  // Biblioteca reutilizable: las fotografías se conservan en IndexedDB,
+  // evitando el límite de espacio de localStorage para imágenes Base64.
   const libraryKeys = { colores: 'cupissa_saved_colors_library', accesorios: 'cupissa_saved_accessories_library' };
   function savedLibrary(kind) { try { return JSON.parse(localStorage.getItem(libraryKeys[kind]) || '[]'); } catch (_) { return []; } }
+  let libraryDBPromise;
+  function openLibraryDB() {
+    if (!libraryDBPromise) libraryDBPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open('cupissa-admin-option-photos', 1);
+      request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('photos')) request.result.createObjectStore('photos'); };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return libraryDBPromise;
+  }
+  async function storeLibraryPhoto(key, value) {
+    try {
+      const db = await openLibraryDB();
+      await new Promise((resolve, reject) => {
+        const request = db.transaction('photos', 'readwrite').objectStore('photos').put(value, key);
+        request.onsuccess = resolve; request.onerror = () => reject(request.error);
+      });
+    } catch (error) { console.warn('No fue posible guardar la foto reutilizable', error); }
+  }
+  async function getLibraryPhoto(key) {
+    try {
+      const db = await openLibraryDB();
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction('photos', 'readonly').objectStore('photos').get(key);
+        request.onsuccess = () => resolve(request.result || ''); request.onerror = () => reject(request.error);
+      });
+    } catch (_) { return ''; }
+  }
+  const photoLibraryKey = (kind, name) => `${kind}:${String(name || '').trim().toLocaleLowerCase('es')}`;
   function saveLibraryItem(kind, item) {
     const name = String(item?.nombre || '').trim(); if (!name) return;
-    // No almacenar imágenes grandes en base64 dentro de localStorage.
-    const clean = { nombre: name, incremento: Number(item.incremento || 0), foto: String(item.foto || '').startsWith('data:') ? '' : String(item.foto || '') };
+    const photo = String(item.foto || item.imagen || '');
+    const clean = { nombre: name, incremento: Number(item.incremento || 0), foto: photo.startsWith('data:') ? '' : photo };
     const data = savedLibrary(kind).filter(i => i.nombre.toLowerCase() !== name.toLowerCase());
     data.push(clean);
     try { localStorage.setItem(libraryKeys[kind], JSON.stringify(data)); } catch (e) { console.warn('No se pudo guardar plantilla', e); }
+    if (photo.startsWith('data:')) storeLibraryPhoto(photoLibraryKey(kind, name), photo).then(() => renderReusableOptions(kind));
     renderReusableOptions(kind);
   }
-  function renderReusableOptions(kind) {
+  async function renderReusableOptions(kind) {
     const id = kind === 'colores' ? 'list-colores-tags' : 'list-accesorios-tags';
     const host = $(id)?.parentElement; if (!host) return;
     let zone = $(`cupissa-library-${kind}`);
@@ -729,18 +770,53 @@
     const title = document.createElement('div'); title.className = 'text-xs font-black text-slate-700 mb-2'; title.textContent = `Reutilizar ${kind} guardados`;
     zone.append(title);
     const row = document.createElement('div'); row.className = 'flex gap-2 flex-wrap';
-    savedLibrary(kind).forEach(item => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-bold text-pink-800';
-      button.textContent = `${item.nombre} (+${new Intl.NumberFormat('es-CO').format(item.incremento || 0)})`;
+    for (const item of savedLibrary(kind)) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.className = 'rounded-xl border border-pink-200 bg-pink-50 p-2 text-xs font-bold text-pink-800 inline-flex items-center gap-2 text-left hover:border-pink-500';
+      const photo = item.foto || await getLibraryPhoto(photoLibraryKey(kind, item.nombre));
+      if (photo) {
+        const img = document.createElement('img'); img.src = photo; img.alt = `Foto de ${item.nombre}`;
+        img.className = 'w-12 h-12 object-cover rounded-lg border border-pink-200 bg-white shrink-0'; button.append(img);
+      } else {
+        const placeholder = document.createElement('span'); placeholder.className = 'w-12 h-12 rounded-lg bg-white border border-dashed border-pink-200 flex items-center justify-center shrink-0';
+        placeholder.textContent = 'Foto'; button.append(placeholder);
+      }
+      const label = document.createElement('span'); label.textContent = `${item.nombre} (+${new Intl.NumberFormat('es-CO').format(item.incremento || 0)})`; button.append(label);
       button.onclick = () => {
         const array = kind === 'colores' ? tempColores : tempAccesorios;
-        if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item });
+        if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item, foto: photo });
         if (kind === 'colores') window.renderColoresTags(); else window.renderAccesoriosTags();
       };
       row.append(button);
-    });
+    }
     zone.append(row);
   }
+  function replaceOptionPhoto(kind, index) {
+    const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*';
+    file.onchange = async () => {
+      const selected = file.files?.[0]; if (!selected) return;
+      if (selected.size > 15 * 1024 * 1024) { alert('La imagen debe pesar máximo 15 MB.'); return; }
+      try {
+        const original = await readImageFile(selected);
+        pendingImageQueue.push({ original, target: 'option-edit', kind, index });
+        if (!currentCropper) startQueuedImageCrop();
+      } catch (error) { alert(error.message || 'No fue posible abrir la imagen.'); }
+    };
+    file.click();
+  }
+  function addReplaceOptionButton(tag, kind, index) {
+    const edit = document.createElement('button'); edit.type = 'button';
+    edit.className = 'admin-photo-edit'; edit.textContent = 'Cambiar foto';
+    edit.title = 'Sustituir la fotografía de esta opción sin eliminarla';
+    edit.addEventListener('click', () => replaceOptionPhoto(kind, index));
+    tag.append(edit);
+  }
+  window.cupissaAddReplaceOptionButton = addReplaceOptionButton;
+  window.cupissaRenderReusableOptions = renderReusableOptions;
+  window.cupissaRememberProductOptionPhotos = function () {
+    tempColores.forEach(item => { if (item && typeof item === 'object' && item.foto) saveLibraryItem('colores', item); });
+    tempAccesorios.forEach(item => { if (item && typeof item === 'object' && item.foto) saveLibraryItem('accesorios', item); });
+  };
   // Registrar automáticamente las opciones en cuanto se agregan a la ficha.
   window.cupissaSaveAccessoryTemplate = item => saveLibraryItem('accesorios', item);
   window.cupissaSaveColorTemplate = item => saveLibraryItem('colores', item);
@@ -784,7 +860,7 @@
       text.textContent = `${color.nombre} (+${new Intl.NumberFormat('es-CO').format(Number(color.incremento || 0))})`;
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'ml-1 text-rose-600 font-black'; remove.textContent = '×';
       remove.addEventListener('click', () => { tempColores.splice(index, 1); window.renderColoresTags(); });
-      tag.append(text, remove); container.appendChild(tag);
+      tag.append(text, remove); addReplaceOptionButton(tag, 'colores', index); container.appendChild(tag);
     });
     window.setProductPublishPhotoCount?.();
   };

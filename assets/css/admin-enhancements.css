@@ -140,3 +140,7 @@
 .admin-publish-mode:disabled:hover { border-color:#e2e8f0; background:#f8fafc; }
 .admin-publish-mode:not(:disabled) { cursor:pointer; }
 #product-publish-modes.hidden { display:none !important; }
+
+/* Edición de fotos dentro de las tarjetas de colores y accesorios */
+.admin-option-photo-edit { position:static; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #059669; border-radius:8px; background:#ecfdf5; color:#047857; font-size:11px; font-weight:800; padding:6px 9px; cursor:pointer; white-space:nowrap; }
+.admin-option-photo-edit:hover, .admin-option-photo-edit:focus-visible { background:#d1fae5; outline:2px solid transparent; }

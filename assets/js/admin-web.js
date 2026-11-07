@@ -239,7 +239,7 @@
   window.deleteWebOrder = async function(id) {
     const order = webOrders.find(item => String(item.id) === String(id));
     const code = order?.numero_pedido || order?.codigo || 'este pedido';
-    if (!confirm(`¿Eliminar definitivamente ${code}? Esta acción no se puede deshacer.`)) return;
+    if (!(await cupissaConfirm(`¿Eliminar definitivamente ${code}? Esta acción no se puede deshacer.`))) return;
     try {
       const { error } = await db.from('pedidos_web').delete().eq('id', id);
       if (error) throw error;
@@ -255,7 +255,7 @@
     const client = webClients.find(item => String(item.id) === String(id));
     if (!client) return;
     const name = clientName(client);
-    if (!confirm(`¿Eliminar a ${name}? También se eliminarán los pedidos web asociados a este cliente. Esta acción no se puede deshacer.`)) return;
+    if (!(await cupissaConfirm(`¿Eliminar a ${name}? También se eliminarán los pedidos web asociados a este cliente. Esta acción no se puede deshacer.`))) return;
     try {
       const deleteOrdersFor = async (column, value) => {
         if (value == null || value === '') return;

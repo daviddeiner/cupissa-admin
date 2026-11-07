@@ -596,7 +596,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         }
 
         async function marcarDeudaComoPaga(creditoId) {
-            if (!confirm('¿Estás seguro de marcar esta deuda como PAGA?')) return;
+            if (!(await cupissaConfirm('¿Estás seguro de marcar esta deuda como PAGA?'))) return;
             
             await supabaseClient.from('creditos').update({ estado: 'PAGADO', deuda_actual: 0 }).eq('id', creditoId);
             
@@ -616,7 +616,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
         async function deleteClientComplete() {
             const id = document.getElementById('edit-client-id').value;
-            if (!confirm('¿Estás totalmente seguro de eliminar este cliente? Se borrarán sus créditos y todos sus datos de forma permanente.')) return;
+            if (!(await cupissaConfirm('¿Estás totalmente seguro de eliminar este cliente? Se borrarán sus créditos y todos sus datos de forma permanente.'))) return;
             
             try {
                 await supabaseClient.from('creditos').delete().eq('cliente_id', id);
@@ -632,27 +632,25 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
         async function openAddDebtPrompt() {
             const clientId = document.getElementById('edit-client-id').value;
-            const monto = parseFloat(prompt('Monto de la nueva deuda ($):'));
-            if (!monto) return;
-            const cuotasTotal = parseInt(prompt('Número de cuotas:', '4')) || 4;
-            const fechaVenc = prompt('Fecha de vencimiento (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-            const frecuencia = prompt('Frecuencia (Quincenal, Semanal, Diario, Mensual):', 'Quincenal') || 'Quincenal';
-
-            const valorCuotaCalculado = Math.ceil(monto / cuotasTotal);
-            await supabaseClient.from('creditos').insert([{
-                cliente_id: clientId,
-                monto_total: monto,
-                deuda_actual: monto,
-                frecuencia: frecuencia,
-                numero_cuotas: cuotasTotal,
-                valor_cuota: valorCuotaCalculado,
-                proximo_vencimiento: fechaVenc,
-                estado: 'ACTIVO'
-            }]);
-
-            fetchAdminData();
-            closeEditModal();
-            alert('¡Nueva deuda agregada exitosamente!');
+            if (!clientId) return alert('Primero selecciona un cliente.');
+            const input = await cupissaDebtForm();
+            if (!input) return;
+            const monto = Number(input.monto), cuotasTotal = Number(input.cuotas);
+            if (!(monto > 0) || !(cuotasTotal >= 1) || !input.fecha) return alert('Completa los datos de la deuda.');
+            try {
+                const { data: cliente, error: clientError } = await supabaseClient.from('clientes').select('cupo_total,cupo_disponible').eq('id',clientId).single();
+                if (clientError) throw clientError;
+                const { error } = await supabaseClient.from('creditos').insert([{
+                    cliente_id: clientId, monto_total:monto, deuda_actual:monto,
+                    frecuencia:input.frecuencia.trim() || 'Quincenal', numero_cuotas:cuotasTotal,
+                    valor_cuota:Math.ceil(monto / cuotasTotal), proximo_vencimiento:input.fecha, estado:'ACTIVO'
+                }]);
+                if (error) throw error;
+                const disponible = Number(cliente.cupo_disponible ?? cliente.cupo_total ?? 0);
+                const { error: cupoError } = await supabaseClient.from('clientes').update({cupo_disponible:disponible-monto}).eq('id',clientId);
+                if (cupoError) throw cupoError;
+                await fetchAdminData();closeEditModal();alert('Nueva deuda registrada correctamente.');
+            } catch (error) { alert('No se pudo registrar la deuda: '+(error?.message || 'Error desconocido')); }
         }
 
         // ==================== CLASIFICACIÓN MÚLTIPLE DE PRODUCTOS ====================
@@ -1315,6 +1313,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 return;
             }
             tempAccesorios.push({ nombre: name, incremento, foto: tempAccesorioFoto });
+            if (typeof window.cupissaSaveAccessoryTemplate === 'function') window.cupissaSaveAccessoryTemplate(tempAccesorios[tempAccesorios.length - 1]);
             nameInput.value = '';
             incrementInput.value = '';
             tempAccesorioFoto = '';
@@ -1620,6 +1619,10 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     });
                 }
 
+                // Las opciones cargadas pueden reutilizarse al crear otros productos.
+                uploadedAccessories.forEach(item => window.cupissaSaveAccessoryTemplate?.(item));
+                uploadedColors.forEach(item => window.cupissaSaveColorTemplate?.(item));
+
                 // La galería principal se compone de las fotos generales y de las fotos asignadas a colores.
                 // Cada entrada mantiene su original para la vista ampliada del catálogo.
                 const galleryPhotoEntries = [];
@@ -1753,7 +1756,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         window.handleSaveProduct = handleSaveProduct;
 
         async function deleteProduct(prodId) {
-            if (!confirm('¿Eliminar producto definitivamente de Supabase? Esta acción no se puede deshacer.')) return;
+            if (!(await cupissaConfirm('¿Eliminar producto definitivamente de Supabase? Esta acción no se puede deshacer.'))) return;
             try {
                 const { data, error } = await supabaseClient
                     .from('productos')
@@ -1770,6 +1773,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 await fetchProductsData({ preserveView: true });
             }
         }
+
+        window.deleteProduct = deleteProduct;
 
         function formatCOP(val) {
             return '$ ' + new Intl.NumberFormat('es-CO').format(val || 0);

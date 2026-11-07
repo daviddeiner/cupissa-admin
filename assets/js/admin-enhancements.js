@@ -845,7 +845,7 @@
   window.cupissaAddProductOnlyPriceEditor = addProductOnlyPriceEditor;
   function addReplaceOptionButton(tag, kind, index) {
     const edit = document.createElement('button'); edit.type = 'button';
-    edit.className = 'admin-photo-edit'; edit.textContent = 'Cambiar foto';
+    edit.className = 'admin-option-photo-edit'; edit.textContent = 'Cambiar foto';
     edit.title = 'Sustituir la fotografía de esta opción sin eliminarla';
     edit.addEventListener('click', () => replaceOptionPhoto(kind, index));
     tag.append(edit);

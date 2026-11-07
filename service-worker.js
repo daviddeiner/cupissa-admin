@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v16-filtros-multiples';
+const CACHE_NAME = 'cupissa-admin-v17-rental-credit-dialogs';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,8 @@ const APP_SHELL = [
   './assets/css/admin-modules.css',
   './assets/css/admin-enhancements.css?v=20261106-4',
   './assets/js/00-config.js',
+  './assets/js/admin-dialogs.js',
+  './assets/js/admin-rentals.js',
   './assets/js/admin-core.js?v=20261106-8',
   './assets/js/admin-web.js?v=20261106-5',
   './assets/js/admin-enhancements.js?v=20261106-8',

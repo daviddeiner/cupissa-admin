@@ -137,6 +137,7 @@
                             <i class="fa-solid fa-boxes-packing mr-1.5"></i> Catálogo de Productos
                         </button>
                         <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes" class="hidden px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-1.5"></i> Clientes web</button>
+                        <button onclick="switchTab('alquileres')" id="tab-btn-alquileres" class="px-4 py-2 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-shirt mr-1.5"></i> Alquileres</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
                     </nav>
                 </div>
@@ -156,6 +157,7 @@
         <button onclick="switchTab('clientes')" id="tab-btn-creditos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs bg-pink-50 fuchsia-text">Clientes</button>
         <button onclick="switchTab('catalogo')" id="tab-btn-catalogo-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Catálogo</button>
         <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes-mob" class="hidden flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Clientes web</button>
+        <button onclick="switchTab('alquileres')" id="tab-btn-alquileres-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Alquileres</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
     </div>
 
@@ -223,6 +225,14 @@
         </div>
 
         <!-- PESTAÑA 2: ADMIN CATÁLOGO DE PRODUCTOS -->
+        <section id="tab-section-alquileres" class="hidden space-y-5">
+          <div class="bg-white rounded-3xl border border-pink-100 shadow-sm p-5 sm:p-7">
+            <h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-shirt fuchsia-text mr-2"></i>Stock de alquileres</h2>
+            <p class="text-xs text-slate-500 mt-2">Solo productos marcados para alquiler. Define el número total de unidades de cada diseño; las reservas ocupan existencias por fecha.</p>
+            <div id="cupissa-rental-stock" class="space-y-3 mt-6"></div>
+          </div>
+        </section>
+
         <div id="tab-section-catalogo" class="hidden space-y-6">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                 <div>
@@ -701,6 +711,8 @@
     </div>
 
     <script src="assets/js/00-config.js"></script>
+    <script src="assets/js/admin-dialogs.js"></script>
+    <script src="assets/js/admin-rentals.js"></script>
     <script src="assets/js/admin-core.js?v=20261106-8"></script>
     <script src="assets/js/admin-web.js?v=20261106-5"></script>
     <script src="assets/js/admin-enhancements.js?v=20261106-8"></script>

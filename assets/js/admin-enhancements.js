@@ -751,8 +751,42 @@
     } catch (_) { return ''; }
   }
   const photoLibraryKey = (kind, name) => `${kind}:${String(name || '').trim().toLocaleLowerCase('es')}`;
-  function saveLibraryItem(kind, item) {
+  const removedLibraryKey = kind => `cupissa_removed_${kind}_library`;
+  function removedLibraryNames(kind) {
+    try { return JSON.parse(localStorage.getItem(removedLibraryKey(kind)) || '[]'); }
+    catch (_) { return []; }
+  }
+  async function deleteSavedLibraryItem(kind, name) {
+    const key = String(name || '').trim().toLocaleLowerCase('es');
+    const confirmed = typeof window.cupissaConfirm === 'function'
+      ? await window.cupissaConfirm(`¿Quitar “${name}” de tus ${kind} guardados? No afectará ningún producto publicado.`)
+      : window.confirm(`¿Quitar “${name}” de tus ${kind} guardados? No afectará ningún producto publicado.`);
+    if (!confirmed) return;
+    try {
+      const kept = savedLibrary(kind).filter(i => String(i.nombre || '').trim().toLocaleLowerCase('es') !== key);
+      localStorage.setItem(libraryKeys[kind], JSON.stringify(kept));
+      const removed = new Set(removedLibraryNames(kind));
+      removed.add(key);
+      localStorage.setItem(removedLibraryKey(kind), JSON.stringify([...removed]));
+    } catch (error) { alert('No fue posible quitar esta opción guardada.'); return; }
+    try {
+      const db = await openLibraryDB();
+      await new Promise((resolve, reject) => {
+        const request = db.transaction('photos', 'readwrite').objectStore('photos').delete(photoLibraryKey(kind, name));
+        request.onsuccess = resolve; request.onerror = () => reject(request.error);
+      });
+    } catch (error) { console.warn('No se pudo borrar la miniatura en caché:', error); }
+    await renderReusableOptions(kind);
+  }
+
+  function saveLibraryItem(kind, item, explicit = false) {
     const name = String(item?.nombre || '').trim(); if (!name) return;
+    const normalized = name.toLocaleLowerCase('es');
+    if (!explicit && removedLibraryNames(kind).includes(normalized)) return;
+    if (explicit) {
+      try { localStorage.setItem(removedLibraryKey(kind), JSON.stringify(removedLibraryNames(kind).filter(x => x !== normalized))); }
+      catch (_) { /* Biblioteca local no disponible */ }
+    }
     const photo = String(item.foto || item.imagen || '');
     const clean = { nombre: name, incremento: Number(item.incremento || 0), foto: photo.startsWith('data:') ? '' : photo };
     const data = savedLibrary(kind).filter(i => i.nombre.toLowerCase() !== name.toLowerCase());
@@ -787,7 +821,16 @@
         if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item, foto: photo, __cupissaProductOnly: true });
         if (kind === 'colores') window.renderColoresTags(); else window.renderAccesoriosTags();
       };
-      row.append(button);
+      const wrapper = document.createElement('span');
+      wrapper.className = 'inline-flex items-stretch overflow-hidden rounded-xl border border-pink-200 bg-pink-50';
+      button.classList.remove('rounded-xl', 'border', 'border-pink-200');
+      const remove = document.createElement('button'); remove.type = 'button';
+      remove.textContent = '×'; remove.title = `Quitar ${item.nombre} de opciones guardadas`;
+      remove.setAttribute('aria-label', `Quitar ${item.nombre} de opciones guardadas`);
+      remove.className = 'px-2 text-sm font-black text-rose-600 hover:bg-rose-100 border-l border-pink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500';
+      remove.onclick = () => deleteSavedLibraryItem(kind, item.nombre);
+      wrapper.append(button, remove);
+      row.append(wrapper);
     }
     zone.append(row);
   }
@@ -857,8 +900,8 @@
     tempAccesorios.forEach(item => { if (item && typeof item === 'object' && item.foto && !item.__cupissaProductOnly) saveLibraryItem('accesorios', item); });
   };
   // Registrar automáticamente las opciones en cuanto se agregan a la ficha.
-  window.cupissaSaveAccessoryTemplate = item => saveLibraryItem('accesorios', item);
-  window.cupissaSaveColorTemplate = item => saveLibraryItem('colores', item);
+  window.cupissaSaveAccessoryTemplate = item => saveLibraryItem('accesorios', item, true);
+  window.cupissaSaveColorTemplate = item => saveLibraryItem('colores', item, true);
   const previousAddColor = window.addColorToList;
   window.addColorToList = function () {
     const nameInput = $('inp-color-nombre');
@@ -873,7 +916,7 @@
       foto: colorPhoto,
       foto_original: colorPhotoOriginal || colorPhoto
     });
-    saveLibraryItem('colores', tempColores[tempColores.length - 1]);
+    saveLibraryItem('colores', tempColores[tempColores.length - 1], true);
     if (nameInput) nameInput.value = '';
     if (incrementInput) incrementInput.value = '';
     colorPhoto = '';

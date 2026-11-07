@@ -1366,6 +1366,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     renderAccesoriosTags();
                 });
                 tag.appendChild(remove);
+                window.cupissaAddProductOnlyPriceEditor?.(tag, 'accesorios', index, item.incremento);
                 window.cupissaAddReplaceOptionButton?.(tag, 'accesorios', index);
                 container.appendChild(tag);
             });
@@ -1622,8 +1623,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 }
 
                 // Las opciones cargadas pueden reutilizarse al crear otros productos.
-                uploadedAccessories.forEach(item => window.cupissaSaveAccessoryTemplate?.(item));
-                uploadedColors.forEach(item => window.cupissaSaveColorTemplate?.(item));
+                uploadedAccessories.forEach((item, index) => { if (!tempAccesorios[index]?.__cupissaProductOnly) window.cupissaSaveAccessoryTemplate?.(item); });
+                uploadedColors.forEach((item, index) => { if (!tempColores[index]?.__cupissaProductOnly) window.cupissaSaveColorTemplate?.(item); });
 
                 // La galería principal se compone de las fotos generales y de las fotos asignadas a colores.
                 // Cada entrada mantiene su original para la vista ampliada del catálogo.

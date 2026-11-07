@@ -653,7 +653,7 @@
       if (option && typeof option === 'object') {
         option.foto = cropped;
         if (queueItem.kind === 'colores') option.foto_original = original;
-        saveLibraryItem(queueItem.kind, option);
+        option.__cupissaProductOnly = true;
         if (queueItem.kind === 'colores') window.renderColoresTags?.();
         else window.renderAccesoriosTags?.();
       }
@@ -784,7 +784,7 @@
       const label = document.createElement('span'); label.textContent = `${item.nombre} (+${new Intl.NumberFormat('es-CO').format(item.incremento || 0)})`; button.append(label);
       button.onclick = () => {
         const array = kind === 'colores' ? tempColores : tempAccesorios;
-        if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item, foto: photo });
+        if (!array.some(x => String(x.nombre || x).toLowerCase() === item.nombre.toLowerCase())) array.push({ ...item, foto: photo, __cupissaProductOnly: true });
         if (kind === 'colores') window.renderColoresTags(); else window.renderAccesoriosTags();
       };
       row.append(button);
@@ -804,6 +804,29 @@
     };
     file.click();
   }
+  function addProductOnlyPriceEditor(tag, kind, index, initialPrice) {
+    const box = document.createElement('label');
+    box.className = 'inline-flex items-center gap-1 text-[11px] font-bold text-slate-700';
+    box.textContent = 'Precio extra $';
+    const input = document.createElement('input');
+    input.type = 'number'; input.min = '0'; input.step = '1';
+    input.value = String(Number(initialPrice || 0));
+    input.className = 'w-24 rounded-lg border border-pink-200 bg-white p-1.5 text-xs text-slate-800';
+    input.title = 'Precio adicional solo para este producto';
+    input.setAttribute('aria-label', 'Precio adicional solo para este producto');
+    const update = () => {
+      const array = kind === 'colores' ? tempColores : tempAccesorios;
+      let option = array[index]; if (!option) return;
+      if (typeof option === 'string') option = array[index] = { nombre: option, incremento: 0 };
+      const value = Number(input.value);
+      option.incremento = Number.isFinite(value) ? Math.max(0, value) : 0;
+      option.__cupissaProductOnly = true;
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    box.append(input); tag.append(box);
+  }
+  window.cupissaAddProductOnlyPriceEditor = addProductOnlyPriceEditor;
   function addReplaceOptionButton(tag, kind, index) {
     const edit = document.createElement('button'); edit.type = 'button';
     edit.className = 'admin-photo-edit'; edit.textContent = 'Cambiar foto';
@@ -814,8 +837,8 @@
   window.cupissaAddReplaceOptionButton = addReplaceOptionButton;
   window.cupissaRenderReusableOptions = renderReusableOptions;
   window.cupissaRememberProductOptionPhotos = function () {
-    tempColores.forEach(item => { if (item && typeof item === 'object' && item.foto) saveLibraryItem('colores', item); });
-    tempAccesorios.forEach(item => { if (item && typeof item === 'object' && item.foto) saveLibraryItem('accesorios', item); });
+    tempColores.forEach(item => { if (item && typeof item === 'object' && item.foto && !item.__cupissaProductOnly) saveLibraryItem('colores', item); });
+    tempAccesorios.forEach(item => { if (item && typeof item === 'object' && item.foto && !item.__cupissaProductOnly) saveLibraryItem('accesorios', item); });
   };
   // Registrar automáticamente las opciones en cuanto se agregan a la ficha.
   window.cupissaSaveAccessoryTemplate = item => saveLibraryItem('accesorios', item);
@@ -860,7 +883,7 @@
       text.textContent = `${color.nombre} (+${new Intl.NumberFormat('es-CO').format(Number(color.incremento || 0))})`;
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'ml-1 text-rose-600 font-black'; remove.textContent = '×';
       remove.addEventListener('click', () => { tempColores.splice(index, 1); window.renderColoresTags(); });
-      tag.append(text, remove); addReplaceOptionButton(tag, 'colores', index); container.appendChild(tag);
+      tag.append(text); addProductOnlyPriceEditor(tag, 'colores', index, color.incremento); tag.append(remove); addReplaceOptionButton(tag, 'colores', index); container.appendChild(tag);
     });
     window.setProductPublishPhotoCount?.();
   };

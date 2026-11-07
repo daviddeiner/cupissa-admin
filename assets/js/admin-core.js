@@ -555,7 +555,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                                         <th class="p-1.5">CUOTA</th>
                                         <th class="p-1.5">VENCIMIENTO</th>
                                         <th class="p-1.5">VALOR</th>
-                                        <th class="p-1.5">ESTADO</th>
+                                        <th class="p-1.5">ESTADO</th><th class="p-1.5">ACCIÓN</th>
                                     </tr>
                                 </thead>
                                 <tbody data-credit-installments="${cred.id}">
@@ -574,33 +574,43 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 // La tabla calculada es solo un respaldo cuando el crédito no tiene
                 // registros de cuotas. Si existen registros reales, prevalecen.
                 supabaseClient.from('cuotas_credito')
-                    .select('numero_cuota,valor_cuota,monto_pagado,fecha_vencimiento,fecha_pago,estado')
+                    .select('id,numero_cuota,valor_cuota,monto_pagado,fecha_vencimiento,fecha_pago,estado')
                     .eq('credito_id', cred.id)
                     .order('numero_cuota', { ascending: true })
                     .then(({ data, error }) => {
-                        if (error || !data?.length || !card.isConnected) return;
+                        if (!card.isConnected) return;
+                        if (error) { console.warn('Cuotas no disponibles:', error); return; }
+                        if (!data?.length) { const tbody = card.querySelector('[data-credit-installments]'); if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="p-3 text-amber-700">Este crédito no tiene cuotas registradas; no se pueden marcar cuotas individuales.</td></tr>'; return; }
                         const tbody = card.querySelector('[data-credit-installments]');
                         if (!tbody) return;
                         tbody.replaceChildren();
-                        const outstanding = data.filter(c =>
-                            !['PAGADO', 'PAGADA', 'CANCELADO', 'CANCELADA'].includes(normalizeCreditStatus(c.estado))
-                            && Number(c.monto_pagado || 0) < Number(c.valor_cuota || 0)
-                        );
-                        if (!outstanding.length) {
+                        // Mostrar tanto las cuotas pendientes como las pagadas mientras el crédito siga activo.
+                        // La ficha completa del crédito ya se oculta al liquidar toda la deuda.
+                        const installments = data;
+                        if (!installments.length) {
                             const row = tbody.insertRow();
-                            const cell = row.insertCell(); cell.colSpan = 4;
-                            cell.className = 'py-3 text-emerald-700 font-bold text-center';
-                            cell.textContent = 'Sin cuotas pendientes';
+                            const cell = row.insertCell(); cell.colSpan = 5;
+                            cell.textContent = 'Sin cuotas registradas';
                         }
-                        outstanding.forEach(c => {
+                        installments.forEach(c => {
                             const row = tbody.insertRow();
+                            const paid = ['PAGADO', 'PAGADA'].includes(normalizeCreditStatus(c.estado)) ||
+                                (Number(c.valor_cuota || 0) > 0 && Number(c.monto_pagado || 0) >= Number(c.valor_cuota || 0));
                             [ `Cuota #${c.numero_cuota || '—'}`, c.fecha_vencimiento || '—',
-                              formatCOP(Math.max(0, Number(c.valor_cuota || 0) - Number(c.monto_pagado || 0))),
-                              'PENDIENTE' ].forEach((val, i) => {
+                              formatCOP(Number(c.valor_cuota || 0)),
+                              paid ? `PAGADA${c.fecha_pago ? ' · ' + c.fecha_pago : ''}` : 'PENDIENTE' ].forEach((val, i) => {
                                 const cell = row.insertCell();
-                                cell.className = 'py-2 px-2 text-xs' + (i === 3 ? ' text-pink-600 font-bold' : '');
+                                cell.className = 'py-2 px-2 text-xs' + (i === 3 ? (paid ? ' text-emerald-700 font-bold' : ' text-pink-600 font-bold') : '');
                                 cell.textContent = val;
                               });
+                            const actionCell = row.insertCell();
+                            actionCell.className = 'py-2 px-2';
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-[10px]';
+                            button.textContent = 'Marcar pagada';
+                            button.addEventListener('click', () => marcarCuotaComoPaga(cred.id, c.id));
+                            if (!paid) actionCell.appendChild(button);
                         });
                     }).catch(err => console.warn('No se pudieron actualizar las cuotas:', err));
             });
@@ -631,31 +641,39 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             alert('¡Fecha de pago y frecuencia actualizadas con éxito!');
         }
 
-        async function marcarDeudaComoPaga(creditoId) {
-            if (!(await cupissaConfirm('¿Estás seguro de marcar esta deuda como PAGA?'))) return;
+        async function cupissaRegistrarPagoAdmin(creditoId, cuotaId = null) {
+            const mensaje = cuotaId
+                ? '¿Confirmas que esta cuota ya fue pagada? Se registrará la fecha de hoy.'
+                : '¿Confirmas que TODA la deuda ya fue pagada? Se cerrarán sus cuotas pendientes.';
+            if (!(await cupissaConfirm(mensaje))) return;
             try {
-                const { data: updated, error } = await supabaseClient.from('creditos')
-                    .update({ estado: 'PAGADO', deuda_actual: 0 })
-                    .eq('id', creditoId).select('id');
+                const { data, error } = await supabaseClient.rpc('cupissa_admin_pagar_credito', {
+                    p_credito_id: String(creditoId),
+                    p_cuota_id: cuotaId == null ? null : String(cuotaId)
+                });
                 if (error) throw error;
-                if (!updated?.length) throw new Error('No se actualizó ningún crédito. Revisa los permisos de Supabase.');
-                // Registrar fecha y estado de las cuotas reales, no solo del crédito padre.
-                const today = new Date().toLocaleDateString('en-CA');
-                const { error: installmentError } = await supabaseClient.from('cuotas_credito')
-                    .update({ estado: 'PAGADO', fecha_pago: today })
-                    .eq('credito_id', creditoId).neq('estado', 'PAGADO');
-                if (installmentError) {
-                    console.warn('No se pudieron cerrar las cuotas relacionadas:', installmentError);
-                    alert('La deuda quedó pagada, pero sus cuotas no pudieron actualizarse: ' + installmentError.message);
-                } else {
-                    alert('Deuda y cuotas marcadas como pagadas correctamente.');
-                }
-                closeEditModal();
+                if (data?.ok === false) throw new Error(data.mensaje || 'No se pudo confirmar el pago.');
+                const clientId = document.getElementById('edit-client-id').value;
                 await fetchAdminData();
+                const client = allClients.find(c => String(c.id) === String(clientId));
+                if (client) {
+                    renderAdminDebtsList(client);
+                } else {
+                    closeEditModal();
+                }
+                alert(cuotaId ? 'Cuota pagada y fecha registrada.' : 'Deuda completamente pagada y cuotas actualizadas.');
             } catch (error) {
-                console.error('Error al marcar deuda como pagada:', error);
+                console.error('No se pudo confirmar el pago:', error);
                 alert('No se pudo registrar el pago: ' + (error?.message || 'Error desconocido'));
             }
+        }
+
+        async function marcarDeudaComoPaga(creditoId) {
+            return cupissaRegistrarPagoAdmin(creditoId);
+        }
+
+        async function marcarCuotaComoPaga(creditoId, cuotaId) {
+            return cupissaRegistrarPagoAdmin(creditoId, cuotaId);
         }
 
         async function saveClientChanges() {

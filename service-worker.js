@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v17-rental-credit-dialogs';
+const CACHE_NAME = 'cupissa-admin-v18-option-photo-library';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,9 +9,9 @@ const APP_SHELL = [
   './assets/js/00-config.js',
   './assets/js/admin-dialogs.js',
   './assets/js/admin-rentals.js',
-  './assets/js/admin-core.js?v=20261106-8',
+  './assets/js/admin-core.js?v=20261107-photos',
   './assets/js/admin-web.js?v=20261106-5',
-  './assets/js/admin-enhancements.js?v=20261106-8',
+  './assets/js/admin-enhancements.js?v=20261107-photos',
   './assets/js/admin-products.js',
   './logo.png',
   './favicon.png',

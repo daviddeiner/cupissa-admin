@@ -792,16 +792,32 @@
     zone.append(row);
   }
   function replaceOptionPhoto(kind, index) {
-    const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*';
-    file.onchange = async () => {
-      const selected = file.files?.[0]; if (!selected) return;
-      if (selected.size > 15 * 1024 * 1024) { alert('La imagen debe pesar máximo 15 MB.'); return; }
+    const file = document.createElement('input');
+    file.type = 'file'; file.accept = 'image/*';
+    file.style.position = 'fixed'; file.style.left = '-9999px';
+    document.body.appendChild(file);
+    file.addEventListener('change', async () => {
+      const selected = file.files && file.files[0];
+      if (!selected) { file.remove(); return; }
+      if (selected.size > 15 * 1024 * 1024) {
+        alert('La imagen debe pesar máximo 15 MB.'); file.remove(); return;
+      }
       try {
-        const original = await readImageFile(selected);
-        pendingImageQueue.push({ original, target: 'option-edit', kind, index });
-        if (!currentCropper) startQueuedImageCrop();
-      } catch (error) { alert(error.message || 'No fue posible abrir la imagen.'); }
-    };
+        // Reemplazo directo: no depende de la cola de recortes ni de la foto original.
+        // Únicamente modifica la opción del producto que se está editando.
+        const photo = await readImageFile(selected);
+        const options = kind === 'colores' ? tempColores : tempAccesorios;
+        let option = options[index];
+        if (!option) return;
+        if (typeof option === 'string') option = options[index] = { nombre: option, incremento: 0 };
+        option.foto = photo;
+        if (kind === 'colores') option.foto_original = photo;
+        option.__cupissaProductOnly = true;
+        if (kind === 'colores') window.renderColoresTags();
+        else window.renderAccesoriosTags();
+      } catch (error) { alert(error?.message || 'No fue posible cambiar la fotografía.'); }
+      finally { file.remove(); }
+    }, { once: true });
     file.click();
   }
   function addProductOnlyPriceEditor(tag, kind, index, initialPrice) {

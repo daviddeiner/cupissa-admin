@@ -1121,6 +1121,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             renderTallasTags();
             renderColoresTags();
             renderAccesoriosTags();
+            window.cupissaRememberProductOptionPhotos?.();
             renderAccesorioFotoPreview();
             renderPreviewPhotos();
             renderSugerenciasCampos();
@@ -1365,6 +1366,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     renderAccesoriosTags();
                 });
                 tag.appendChild(remove);
+                window.cupissaAddReplaceOptionButton?.(tag, 'accesorios', index);
                 container.appendChild(tag);
             });
         }

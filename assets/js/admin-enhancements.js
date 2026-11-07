@@ -373,6 +373,7 @@
   }
 
   function validateBasicProductStep() {
+    window.commitProductMultiInputs?.();
     const required = [
       ['prod-nombre', 'Escribe el título del producto.'],
       ['prod-mundo', 'Selecciona o escribe el mundo.'],

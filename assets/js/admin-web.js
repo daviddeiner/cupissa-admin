@@ -14,6 +14,33 @@
   let maxOrdersPerDay = 20;
   // Los perfiles web de CUPISSA se guardan específicamente en public.clientes_web.
   let webClientsTable = 'clientes_web';
+  const ADMIN_WEB_CHUNK = 20;
+  let webClientVisible = ADMIN_WEB_CHUNK;
+  let webOrderVisible = ADMIN_WEB_CHUNK;
+  let webClientObserver = null;
+  let webOrderObserver = null;
+  function observeAdminList(sentinelId, kind) {
+    const sentinel = $(sentinelId);
+    if (!sentinel || !('IntersectionObserver' in window)) return;
+    const key = kind === 'clients' ? 'webClientObserver' : 'webOrderObserver';
+    if (kind === 'clients' && webClientObserver) webClientObserver.disconnect();
+    if (kind === 'orders' && webOrderObserver) webOrderObserver.disconnect();
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      if (kind === 'clients') {
+        if (webClientVisible >= filteredWebClients.length) return;
+        webClientVisible = Math.min(filteredWebClients.length, webClientVisible + ADMIN_WEB_CHUNK);
+        renderWebClients();
+      } else {
+        if (webOrderVisible >= filteredWebOrders.length) return;
+        webOrderVisible = Math.min(filteredWebOrders.length, webOrderVisible + ADMIN_WEB_CHUNK);
+        renderWebOrders();
+      }
+    }, { rootMargin: '350px 0px' });
+    observer.observe(sentinel);
+    if (kind === 'clients') webClientObserver = observer; else webOrderObserver = observer;
+  }
+
 
   async function resolveWebClientsTable() {
     // Verifica acceso y existencia de la tabla antes de utilizarla.
@@ -40,7 +67,7 @@
       const { data, error } = await db.from(tableName).select('*');
       if (error) throw error;
       webClients = (data || []).sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-      filteredWebClients = [...webClients]; renderWebClients();
+      filteredWebClients = [...webClients]; webClientVisible = ADMIN_WEB_CHUNK; renderWebClients();
       try {
         const creditResult = await db.from('clientes').select('*').order('nombre', { ascending:true });
         if (creditResult.error) throw creditResult.error;
@@ -71,7 +98,7 @@
     const body = $('web-clients-tbody'); if (!body) return;
     $('web-clients-total').textContent = webClients.length;
     if (!filteredWebClients.length) { body.innerHTML = '<tr><td colspan="9" class="p-7 text-center text-slate-400">No hay clientes web registrados.</td></tr>'; return; }
-    body.innerHTML = filteredWebClients.map(c => `<tr class="hover:bg-slate-50">
+    body.innerHTML = filteredWebClients.slice(0, webClientVisible).map(c => `<tr class="hover:bg-slate-50">
       <td class="admin-web-table-cell font-bold">${esc(c.nombres)}</td>
       <td class="admin-web-table-cell">${esc(c.apellidos)}</td>
       <td class="admin-web-table-cell font-mono">${esc(c.cedula || '—')}</td>
@@ -83,12 +110,13 @@
       <td class="admin-web-table-cell"><div class="flex items-center gap-1">
         <button type="button" class="admin-web-button" onclick="viewWebClient('${esc(c.id)}')"><i class="fa-solid fa-pen mr-1"></i> Editar ficha</button>
         <button type="button" class="admin-web-delete" title="Eliminar cliente y sus pedidos asociados" aria-label="Eliminar cliente" onclick="deleteWebClient('${esc(c.id)}')"><i class="fa-solid fa-trash"></i></button>
-      </div></td></tr>`).join('');
+      </div></td></tr>`).join('') + (webClientVisible < filteredWebClients.length ? `<tr id="web-clients-scroll-sentinel"><td colspan="9" class="p-3 text-center text-xs text-slate-400">Cargando más clientes al desplazarte…</td></tr>` : '');
+    observeAdminList('web-clients-scroll-sentinel', 'clients');
   }
   function renderWebOrders() {
     const body = $('web-orders-tbody'); if (!body) return;
     if (!filteredWebOrders.length) { body.innerHTML = '<tr><td colspan="13" class="p-7 text-center text-slate-400">Todavía no hay pedidos web registrados.</td></tr>'; return; }
-    body.innerHTML = filteredWebOrders.map(o => {
+    body.innerHTML = filteredWebOrders.slice(0, webOrderVisible).map(o => {
       const items = Array.isArray(o.productos) ? o.productos : [];
       const orderImages = Array.isArray(o.imagenes) ? o.imagenes : [...new Set(items.flatMap(p => Array.isArray(p.imagenes) ? p.imagenes : (p.imagen_url ? [p.imagen_url] : [])))];
       const photoCount = orderImages.length;
@@ -106,10 +134,12 @@
         <td class="admin-web-table-cell"><button type="button" class="admin-web-button" onclick="viewWebOrder('${esc(o.id)}')"><i class="fa-regular fa-images mr-1"></i> Ver (${photoCount})</button></td>
         <td class="admin-web-table-cell"><div class="flex items-center gap-2"><select class="admin-web-status" aria-label="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select><button type="button" class="admin-web-delete" title="Eliminar pedido" aria-label="Eliminar pedido" onclick="deleteWebOrder('${esc(o.id)}')"><i class="fa-solid fa-trash"></i></button></div></td>
       </tr>`;
-    }).join('');
+    }).join('') + (webOrderVisible < filteredWebOrders.length ? `<tr id="web-orders-scroll-sentinel"><td colspan="13" class="p-3 text-center text-xs text-slate-400">Cargando más pedidos al desplazarte…</td></tr>` : '');
+    observeAdminList('web-orders-scroll-sentinel', 'orders');
   }
   function filterWebClients() {
     const q = ($('web-client-search')?.value || '').trim().toLowerCase();
+    webClientVisible = ADMIN_WEB_CHUNK;
     filteredWebClients = webClients.filter(c => [c.nombres,c.apellidos,c.cedula,c.telefono,c.correo,c.direccion,c.barrio,c.ciudad].some(v => String(v||'').toLowerCase().includes(q)));
     renderWebClients();
   }
@@ -163,6 +193,7 @@
     const month = $('web-order-month')?.value || '';
     const day = $('web-order-day')?.value || '';
     const state = normalizeOrderStatus($('web-order-status-filter')?.value || '');
+    webOrderVisible = ADMIN_WEB_CHUNK;
     filteredWebOrders = webOrders.filter(order => {
       const date = deliveryDateKey(order);
       if (month && date.slice(0, 7) !== month) return false;
@@ -342,10 +373,60 @@
       </form>`;
   }
 
+  function normalizedPhone(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  }
+  function clientReferenceSet(client) {
+    return new Set([client?.id, client?.cliente_id, client?.id_cliente, client?.cliente_credito_id]
+      .filter(value => value !== undefined && value !== null && String(value).trim() !== '')
+      .map(value => String(value)));
+  }
+  function orderBelongsToWebClient(order, client) {
+    const clientRefs = clientReferenceSet(client);
+    const orderRefs = [order?.cliente_web_id, order?.cliente_id, order?._client?.id, order?._client?.cliente_id]
+      .filter(value => value !== undefined && value !== null).map(String);
+    if (orderRefs.some(value => clientRefs.has(value))) return true;
+    const clientPhone = normalizedPhone(client?.telefono);
+    const orderPhone = normalizedPhone(order?.telefono || order?.contacto || order?._client?.telefono);
+    return !!clientPhone && clientPhone.length >= 7 && clientPhone === orderPhone;
+  }
+
+  window.loadCreditClientOrderNotes = async function(creditClient) {
+    const container = $('admin-client-web-order-notes');
+    if (!container || !creditClient) return;
+    container.innerHTML = '<div class="text-xs text-slate-400">Consultando notas de pedidos…</div>';
+    try {
+      const { data, error } = await db.from('pedidos_web').select('*').order('created_at', { ascending:false });
+      if (error) throw error;
+      const creditId = String(creditClient.id ?? '');
+      const phone = normalizedPhone(creditClient.telefono);
+      const linkedWebClients = webClients.filter(client => String(client.cliente_id ?? client.id_cliente ?? '') === creditId ||
+        (!!phone && phone.length >= 7 && normalizedPhone(client.telefono) === phone));
+      const references = new Set([creditId, ...linkedWebClients.map(client => String(client.id))].filter(Boolean));
+      const notes = (data || []).filter(order => {
+        if (!String(order.nota || '').trim()) return false;
+        const orderReferences = [order.cliente_web_id, order.cliente_id].filter(value => value != null).map(String);
+        if (orderReferences.some(value => references.has(value))) return true;
+        const orderPhone = normalizedPhone(order.telefono || order.contacto);
+        return !!phone && phone.length >= 7 && phone === orderPhone;
+      });
+      container.innerHTML = notes.length
+        ? `<h4 class="text-xs font-black uppercase tracking-wide text-amber-800 mb-2">Notas de pedidos</h4>${notes.map(order => `<div class="py-2 border-b border-amber-100 last:border-0"><strong class="block text-[10px] text-slate-500">${esc(order.numero_pedido || order.codigo || 'Pedido')} · ${esc(order.fecha_entrega || order.created_at?.slice(0,10) || '')}</strong><p class="text-xs text-slate-700 mt-1 whitespace-pre-wrap">${esc(order.nota)}</p></div>`).join('')}`
+        : '<p class="text-xs text-slate-500">Este cliente todavía no tiene notas registradas en sus pedidos.</p>';
+    } catch (error) {
+      console.error('No fue posible cargar las notas de pedidos del cliente:', error);
+      container.innerHTML = '<p class="text-xs text-rose-600">No fue posible consultar las notas de sus pedidos.</p>';
+    }
+  };
+
   window.viewWebClient = async function(id) {
     const client = webClients.find(item => String(item.id) === String(id));
     if (!client) return;
-    const metadata = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4"><div class="rounded-xl bg-slate-50 p-3"><span class="block text-[9px] font-black uppercase text-slate-400">Identificador interno</span><strong class="block text-xs text-slate-800 mt-1 break-all">${esc(client.id)}</strong></div><div class="rounded-xl bg-slate-50 p-3"><span class="block text-[9px] font-black uppercase text-slate-400">Registro</span><strong class="block text-xs text-slate-800 mt-1">${esc(client.created_at ? new Date(client.created_at).toLocaleString('es-CO') : '—')}</strong></div></div>`;
+    await loadWebOrders();
+    const clientNotes = webOrders.filter(order => orderBelongsToWebClient(order, client) && String(order.nota || '').trim()).map(order => ({ order, nota:order.nota }));
+    const notesHtml = clientNotes.length ? `<section class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 mb-4"><h4 class="text-[10px] font-black uppercase tracking-wide text-amber-800 mb-2">Notas de pedidos</h4>${clientNotes.map(item=>`<div class="text-xs text-slate-700 py-1 border-b border-amber-100 last:border-0"><strong>${esc(item.order.numero_pedido || item.order.codigo || 'Pedido')}:</strong> ${esc(item.nota)}</div>`).join('')}</section>` : `<section class="rounded-xl border border-slate-100 p-3 mb-4 text-xs text-slate-400">Este cliente todavía no tiene notas en sus pedidos.</section>`;
+    const metadata = `${notesHtml}<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4"><div class="rounded-xl bg-slate-50 p-3"><span class="block text-[9px] font-black uppercase text-slate-400">Identificador interno</span><strong class="block text-xs text-slate-800 mt-1 break-all">${esc(client.id)}</strong></div><div class="rounded-xl bg-slate-50 p-3"><span class="block text-[9px] font-black uppercase text-slate-400">Registro</span><strong class="block text-xs text-slate-800 mt-1">${esc(client.created_at ? new Date(client.created_at).toLocaleString('es-CO') : '—')}</strong></div></div>`;
     // La ficha y la cédula se guardan en clientes_web. El campo password se
     // actualiza por separado en la tabla histórica clientes, según el vínculo del cliente.
     showAdminWebModal('Ficha completa del cliente web', metadata + clientEditForm(client,false));
@@ -540,7 +621,29 @@
     const imagesHtml = images.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" class="admin-web-order-image"></a>`).join('');
     const orderType = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
     const orderName = o.numero_pedido || o.codigo || '';
-    showAdminWebModal(`Pedido ${orderName}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c) !== 'Cliente sin nombre' ? clientName(c) : o.cliente_nombre],['Teléfono',o.contacto||o.telefono||c.telefono],['Tipo',orderType],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ')],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.domicilio_envio ?? o.envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
+    showAdminWebModal(`Pedido ${orderName}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c) !== 'Cliente sin nombre' ? clientName(c) : o.cliente_nombre],['Teléfono',o.contacto||o.telefono||c.telefono],['Tipo',orderType],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ')],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.domicilio_envio ?? o.envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div><section class="mt-5 rounded-xl border border-amber-200 bg-amber-50/50 p-3"><label for="web-order-note-input" class="block text-xs font-black uppercase text-slate-700 mb-2">Nota del pedido</label><textarea id="web-order-note-input" rows="3" class="admin-web-input w-full" placeholder="Escribe una nota para este pedido...">${esc(o.nota || '')}</textarea><button type="button" class="admin-web-button mt-2" onclick="saveWebOrderNote('${esc(o.id)}')"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar nota</button></section>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
+  };
+
+  window.saveWebOrderNote = async function(id) {
+    const order = webOrders.find(item => String(item.id) === String(id));
+    const input = $('web-order-note-input');
+    if (!order || !input) return;
+    const nota = input.value.trim();
+    try {
+      const { error } = await db.from('pedidos_web').update({ nota }).eq('id', id);
+      if (error) throw error;
+      order.nota = nota;
+      alert('Nota del pedido guardada correctamente.');
+      await loadWebOrders();
+      const activeCreditClientId = $('edit-client-id')?.value;
+      const activeCreditClient = activeCreditClientId ? (creditClients.find(item => String(item.id) === String(activeCreditClientId))) : null;
+      if (activeCreditClient && $('admin-client-web-order-notes') && !$('modal-edit-client')?.classList.contains('hidden')) {
+        await window.loadCreditClientOrderNotes?.(activeCreditClient);
+      }
+    } catch (error) {
+      console.error('No fue posible guardar la nota del pedido:', error);
+      alert('No se pudo guardar la nota. Verifica que pedidos_web tenga la columna nota (TEXT).');
+    }
   };
 
   function getCatalogProducts() {

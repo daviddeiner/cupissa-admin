@@ -214,13 +214,10 @@
                         <tbody id="admin-tbody" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
-                <div class="p-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span id="clients-pagination-info" class="text-slate-500 font-semibold">Mostrando 0 de 0</span>
-                    <div class="space-x-2">
-                        <button onclick="changeClientsPage(-1)" id="btn-prev-clients" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Anterior</button>
-                        <button onclick="changeClientsPage(1)" id="btn-next-clients" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 disabled:opacity-40">Siguiente</button>
-                    </div>
+                <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span id="clients-pagination-info" class="text-slate-500 font-semibold">0 de 0 clientes</span>
                 </div>
+                <div id="clients-scroll-sentinel" class="h-12 flex items-center justify-center text-[11px] text-slate-400" aria-live="polite">Desplázate para ver más clientes</div>
             </div>
         </div>
 
@@ -439,6 +436,13 @@
                     <input type="number" id="edit-client-cupo" class="w-full border-2 fuchsia-border bg-white rounded-xl px-3 py-2 font-black fuchsia-text">
                 </div>
             </div>
+
+            <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                <h4 class="text-xs font-black uppercase tracking-wide text-amber-800 mb-2"><i class="fa-regular fa-note-sticky mr-1"></i> Notas de pedidos del cliente</h4>
+                <div id="admin-client-web-order-notes" aria-live="polite">
+                    <p class="text-xs text-slate-400">Las notas de pedidos aparecerán aquí.</p>
+                </div>
+            </section>
 
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
@@ -713,9 +717,10 @@
     <script src="assets/js/00-config.js"></script>
     <script src="assets/js/admin-dialogs.js"></script>
     <script src="assets/js/admin-rentals.js"></script>
-    <script src="assets/js/admin-core.js?v=20261107-credito-v3"></script>
-    <script src="assets/js/admin-web.js?v=20261106-5"></script>
+    <script src="assets/js/admin-core.js?v=20261108-credit-clients-infinite-v1"></script>
+    <script src="assets/js/admin-web.js?v=20261108-notes-profile-v2"></script>
     <script src="assets/js/admin-enhancements.js?v=20261107-library-remove-v1"></script>
+    <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>
 </body>

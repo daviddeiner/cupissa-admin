@@ -1761,7 +1761,15 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     const photosCount = galleryPhotoEntries.length;
                     savedProductCount = photosCount > 1 ? photosCount : 1;
 
-                    if (photosCount > 1) {
+                    if (photosCount > 1 && selectedPublishMode === null) {
+                        // Sin modalidad seleccionada: una sola publicación con toda la galería.
+                        const { error } = await supabaseClient.from('productos').insert([{
+                            ...baseProductData,
+                            fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : galleryPhotoEntries.map(entry => entry.photo),
+                            fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : galleryPhotoEntries.map(entry => entry.original)
+                        }]);
+                        if (error) throw error;
+                    } else if (photosCount > 1) {
                         const productsToInsert = [];
                         const publishMode = selectedPublishMode;
                         for (let i = 0; i < photosCount; i++) {

@@ -1040,7 +1040,7 @@
         if (!session?.access_token) throw new Error('No se pudo obtener un token de sesión válido.');
         const { data: emailResult, error: emailError } = await db.functions.invoke('cupissa-emails', {
           headers: { Authorization: `Bearer ${session.access_token}` },
-          body: { action:'admin_order_confirmation', order_id:savedOrder.id }
+          body: { action:'admin_order_confirmation', order_id:savedOrder.id, cliente_correo:String(client.correo || '').trim() }
         });
         if (emailError) {
           let detail = emailError.message || 'No se pudo enviar el correo.';
@@ -1055,6 +1055,7 @@
           throw new Error(detail);
         }
         if (emailResult?.error) throw new Error(emailResult.detail || emailResult.error);
+        if (emailResult?.ok === false) throw new Error(emailResult.error || 'No se confirmó el envío.');
         if (emailResult?.result?.skipped) throw new Error(emailResult.result.reason || 'El envío fue omitido.');
         if (emailResult?.result?.ok === false) throw new Error(emailResult.result.error || 'El proveedor no confirmó el envío.');
       } catch (emailError) {

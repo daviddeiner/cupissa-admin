@@ -46,22 +46,58 @@ async function deliver(message: { to: string; subject: string; html: string; tex
 }
 
 async function getOrderEmail(source: 'pedidos' | 'pedidos_web', record: Record<string, unknown>) {
+  // Los pedidos_web del administrador guardan cliente_id, no correo_cliente.
+  // Resolver contra clientes_web evita marcar un correo válido como ausente.
   let email = String(record.correo_cliente || '').trim();
   let name = String(record.nombre_cliente || record.cliente_nombre || 'Cliente CUPISSA').trim();
-  if (source === 'pedidos_web') {
-    const webId = String(record.cliente_web_id || record.cliente_id || '');
-    if (!email && webId) {
-      const { data, error } = await db.from('clientes_web').select('correo,nombres,apellidos').eq('id', webId).maybeSingle();
-      if (error) console.error('Error buscando clientes_web', error);
-      if (data) { email = String(data.correo || '').trim(); name = `${data.nombres || ''} ${data.apellidos || ''}`.trim() || name; }
-    }
-    if (!email && webId) {
-      const { data, error } = await db.from('clientes').select('correo,nombre').eq('id', webId).maybeSingle();
-      if (error) console.error('Error buscando clientes', error);
-      if (data) { email = String(data.correo || '').trim(); name = String(data.nombre || name); }
+  if (source !== 'pedidos_web') return { email, name };
+
+  const identifiers = [...new Set([record.cliente_web_id, record.cliente_id]
+    .filter(value => value !== undefined && value !== null && String(value).trim())
+    .map(value => String(value)))];
+
+  const useClient = (client: Record<string, unknown> | null) => {
+    if (!client || !validEmail(client.correo)) return false;
+    email = String(client.correo).trim();
+    name = [client.nombres, client.apellidos].filter(Boolean).join(' ').trim() || name;
+    return true;
+  };
+
+  for (const id of identifiers) {
+    const { data, error } = await db.from('clientes_web')
+      .select('id,nombres,apellidos,correo').eq('id', id).maybeSingle();
+    if (error) console.warn('[cupissa-emails] clientes_web por id:', error.message);
+    if (useClient(data)) return { email, name };
+  }
+
+  // Vinculación heredada: clientes_web.cliente_id apunta a clientes.id.
+  for (const id of identifiers) {
+    const { data, error } = await db.from('clientes_web')
+      .select('id,nombres,apellidos,correo').eq('cliente_id', id).limit(2);
+    if (error) {
+      // Algunas instalaciones no tienen columna cliente_id.
+      console.warn('[cupissa-emails] vínculo heredado:', error.message);
+    } else if (data?.length === 1 && useClient(data[0])) {
+      return { email, name };
     }
   }
-  return { email, name };
+
+  // Última alternativa para registros históricos sin identificador coincidente:
+  // usar teléfono solo si identifica a una única ficha web.
+  const phone = String(record.telefono || record.contacto || '').replace(/\D/g, '');
+  if (phone.length >= 7) {
+    const { data, error } = await db.from('clientes_web')
+      .select('id,nombres,apellidos,correo').eq('telefono', String(record.telefono || record.contacto || '').trim()).limit(2);
+    if (!error && data?.length === 1 && useClient(data[0])) return { email, name };
+  }
+
+  // Solo en solicitudes del administrador autenticado se admite este respaldo.
+  // No se escribe en la tabla ni cambia el correo comercial.
+  const adminEmail = String(record._admin_email_verified || '').trim();
+  if (validEmail(adminEmail)) return { email: adminEmail, name };
+
+  if (validEmail(email)) return { email, name };
+  return { email: '', name };
 }
 
 function emailLayout(p: { preheader: string; title: string; greeting: string; content: string; buttonText?: string; buttonUrl?: string }) {
@@ -202,7 +238,18 @@ Deno.serve(async (req) => {
       const { data: order, error: lookupError } = await db.from('pedidos_web').select('*').eq('id', orderId).maybeSingle();
       if (lookupError) throw lookupError;
       if (!order) return Response.json({ error: 'Pedido no encontrado.' }, { status: 404, headers: cors });
-      result = await sendOrderConfirmation({ source:'pedidos_web', record:order });
+      // El administrador ya validó el correo en clientes_web antes de guardar.
+      // Respaldar la resolución cuando el esquema de pedidos no almacene el correo.
+      const fallbackEmail = String(body.cliente_correo || '').trim();
+      result = await sendOrderConfirmation({
+        source:'pedidos_web',
+        record:{ ...order, _admin_email_verified: validEmail(fallbackEmail) ? fallbackEmail : '' }
+      });
+      if (result?.skipped) return Response.json({
+        ok:false, code:'CUSTOMER_EMAIL_NOT_RESOLVED',
+        error:'No se encontró el correo del cliente en clientes_web para este pedido.',
+        result
+      }, { status:422, headers:cors });
     } else {
       // Se preserva sin cambios el mecanismo interno de la web y recordatorios.
       if (!env('CUPISSA_EMAIL_HOOK_SECRET') || req.headers.get('x-cupissa-hook-secret') !== env('CUPISSA_EMAIL_HOOK_SECRET')) {

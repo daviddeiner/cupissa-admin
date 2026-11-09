@@ -60,8 +60,9 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
         let allClients = [];
         let filteredClients = [];
-        let currentClientsPage = 1;
-        const clientsPerPage = 5;
+        let clientsVisibleCount = 32;
+        const clientsPageChunk = 32;
+        let clientsObserver = null;
 
         let allProducts = [];
         let filteredProducts = [];
@@ -264,7 +265,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
                 allClients = Array.from(clientMap.values());
                 filteredClients = [...allClients];
-                currentClientsPage = 1;
+                clientsVisibleCount = clientsPageChunk;
                 renderAdminTable();
             } catch (err) {
                 console.error('Error al cargar los clientes desde Supabase:', err);
@@ -279,18 +280,27 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             }
         }
 
+        function setupClientsInfiniteScroll() {
+            const sentinel = document.getElementById('clients-scroll-sentinel');
+            if (!sentinel || !('IntersectionObserver' in window) || clientsObserver) return;
+            clientsObserver = new IntersectionObserver(entries => {
+                if (!entries.some(entry => entry.isIntersecting)) return;
+                if (clientsVisibleCount >= filteredClients.length) return;
+                clientsVisibleCount = Math.min(filteredClients.length, clientsVisibleCount + clientsPageChunk);
+                renderAdminTable();
+            }, { rootMargin: '500px 0px' });
+            clientsObserver.observe(sentinel);
+        }
+
         function renderAdminTable() {
             const tbody = document.getElementById('admin-tbody');
-            document.getElementById('val-total-clients').innerText = allClients.length;
+            const totalLabel = document.getElementById('val-total-clients');
+            if (!tbody) return;
+            if (totalLabel) totalLabel.innerText = allClients.length;
             tbody.innerHTML = '';
 
-            const totalPages = Math.ceil(filteredClients.length / clientsPerPage) || 1;
-            if (currentClientsPage > totalPages) currentClientsPage = totalPages;
-            if (currentClientsPage < 1) currentClientsPage = 1;
-
-            const startIdx = (currentClientsPage - 1) * clientsPerPage;
-            const endIdx = startIdx + clientsPerPage;
-            const clientsToShow = filteredClients.slice(startIdx, endIdx);
+            const total = filteredClients.length;
+            const clientsToShow = filteredClients.slice(0, clientsVisibleCount);
 
             if (clientsToShow.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No se encontraron clientes.</td></tr>`;
@@ -316,14 +326,21 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 });
             }
 
-            document.getElementById('clients-pagination-info').innerText = `Mostrando ${filteredClients.length > 0 ? startIdx + 1 : 0} a ${Math.min(endIdx, filteredClients.length)} de ${filteredClients.length} clientes`;
-            document.getElementById('btn-prev-clients').disabled = currentClientsPage === 1;
-            document.getElementById('btn-next-clients').disabled = endIdx >= filteredClients.length;
+            const info = document.getElementById('clients-pagination-info');
+            if (info) info.innerText = `${clientsToShow.length} de ${total} clientes`;
+            const sentinel = document.getElementById('clients-scroll-sentinel');
+            if (sentinel) sentinel.textContent = clientsToShow.length < total
+                ? 'Desplázate para ver más clientes'
+                : (total ? 'Has llegado al final de los clientes' : '');
+            setupClientsInfiniteScroll();
         }
 
-        function changeClientsPage(direction) {
-            currentClientsPage += direction;
-            renderAdminTable();
+        // Compatibilidad con accesos antiguos: ya no hay paginación manual.
+        function changeClientsPage() {
+            if (clientsVisibleCount < filteredClients.length) {
+                clientsVisibleCount = Math.min(filteredClients.length, clientsVisibleCount + clientsPageChunk);
+                renderAdminTable();
+            }
         }
 
         function filterAdminTable() {
@@ -333,7 +350,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 const telefono = (c.telefono || '').toLowerCase();
                 return nombre.includes(query) || telefono.includes(query);
             });
-            currentClientsPage = 1;
+            clientsVisibleCount = clientsPageChunk;
             renderAdminTable();
         }
 
@@ -419,6 +436,15 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('edit-client-cupo').value = client.cupo_disponible || 0;
 
             renderAdminDebtsList(client);
+            const notesPanel = document.getElementById('admin-client-web-order-notes');
+            if (notesPanel) {
+                notesPanel.innerHTML = '<p class="text-xs text-slate-400">Consultando notas de pedidos…</p>';
+                if (typeof window.loadCreditClientOrderNotes === 'function') {
+                    window.loadCreditClientOrderNotes(client);
+                } else {
+                    notesPanel.innerHTML = '<p class="text-xs text-slate-400">Las notas de pedidos estarán disponibles al cargar el módulo de pedidos web.</p>';
+                }
+            }
             document.getElementById('modal-edit-client').classList.remove('hidden');
         }
 
@@ -1761,7 +1787,15 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     const photosCount = galleryPhotoEntries.length;
                     savedProductCount = photosCount > 1 ? photosCount : 1;
 
-                    if (photosCount > 1) {
+                    if (photosCount > 1 && selectedPublishMode === null) {
+                        // Sin modalidad seleccionada: una sola publicación con toda la galería.
+                        const { error } = await supabaseClient.from('productos').insert([{
+                            ...baseProductData,
+                            fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : galleryPhotoEntries.map(entry => entry.photo),
+                            fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : galleryPhotoEntries.map(entry => entry.original)
+                        }]);
+                        if (error) throw error;
+                    } else if (photosCount > 1) {
                         const productsToInsert = [];
                         const publishMode = selectedPublishMode;
                         for (let i = 0; i < photosCount; i++) {

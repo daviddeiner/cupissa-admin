@@ -153,6 +153,8 @@ async function sendOrderConfirmation(payload: Record<string, unknown>) {
   const date = String(record.fecha_entrega || record.fecha_pedido || record.created_at || 'Por confirmar');
   const total = source === 'pedidos' ? record.total_pedido : record.total;
   const advance = source === 'pedidos' ? record.valor_anticipo : record.anticipo;
+  const shipping = Number(record.envio ?? record.domicilio_envio ?? record.domicilio ?? 0);
+  const remaining = Math.max(0, Number(total || 0) + shipping - Number(advance || 0));
   const description = source === 'pedidos' ? record.descripcion : record.productos;
   const detail = renderOrderDetail(description);
   const subject = `CUPISSA | Confirmación de pedido ${number}`;
@@ -160,11 +162,11 @@ async function sendOrderConfirmation(payload: Record<string, unknown>) {
     preheader: `Confirmación de tu pedido ${number}`,
     title: '¡Tu pedido está registrado!',
     greeting: `Hola ${name}, recibimos tu pedido y quedó registrado correctamente en CUPISSA.`,
-    content: `<div style="background:${BG};border:1px solid #f5d2e5;border-radius:14px;padding:18px;margin:20px 0"><p><b>Número de pedido:</b> ${esc(number)}</p><p><b>Fecha:</b> ${esc(date)}</p><p><b>Estado:</b> ${esc(record.estado || 'Registrado')}</p></div>${detail.html ? `<h3 style="font-size:16px;color:#29212a">Detalle del pedido</h3>${detail.html}` : ''}<div style="margin-top:20px;border-top:1px solid #f1e5ec;padding-top:15px"><p><b>Total del pedido:</b> <span style="color:${COLOR};font-weight:bold">${esc(money(total))}</span></p><p><b>Anticipo registrado:</b> ${esc(money(advance))}</p></div><p>Si tienes alguna inquietud, nuestro equipo está disponible para ayudarte.</p>`,
+    content: `<div style="background:${BG};border:1px solid #f5d2e5;border-radius:14px;padding:18px;margin:20px 0"><p><b>Número de pedido:</b> ${esc(number)}</p><p><b>Fecha:</b> ${esc(date)}</p><p><b>Estado:</b> ${esc(record.estado || 'Registrado')}</p></div>${detail.html ? `<h3 style="font-size:16px;color:#29212a">Detalle del pedido</h3>${detail.html}` : ''}<div style="margin-top:20px;border-top:1px solid #f1e5ec;padding-top:15px"><p><b>Total del pedido:</b> <span style="color:${COLOR};font-weight:bold">${esc(money(total))}</span></p><p><b>Domicilio / envío:</b> ${esc(money(shipping))}</p><p><b>Anticipo registrado:</b> −${esc(money(advance))}</p><p><b>Restante por pagar:</b> <span style="color:${COLOR};font-weight:bold">${esc(money(remaining))}</span></p></div><p>Si tienes alguna inquietud, nuestro equipo está disponible para ayudarte.</p>`,
     buttonText: 'CONSULTAR MI CUENTA', buttonUrl: ACCOUNT,
   });
   return await deliver({ to: email, subject, html,
-    text: `Hola ${name}. Tu pedido ${number} fue registrado en CUPISSA.\nFecha: ${date}.\n${detail.text}\nTotal: ${money(total)}. Anticipo: ${money(advance)}.`,
+    text: `Hola ${name}. Tu pedido ${number} fue registrado en CUPISSA.\nFecha: ${date}.\n${detail.text}\nProductos: ${money(total)}. Envío: ${money(shipping)}. Anticipo: ${money(advance)}. Restante: ${money(remaining)}.`,
     idempotencyKey: `order:${source}:${String(record.id || number)}`,
   });
 }

@@ -1,0 +1,7 @@
+CUPISSA ADMIN — RESTANTE POR PAGAR
+
+1. Sube los archivos del ZIP a GitHub.
+2. Reemplaza el código de Supabase > Edge Functions > cupissa-emails por supabase/functions/cupissa-emails/index.ts y despliega los cambios para actualizar también el correo de confirmación.
+3. No necesitas ejecutar SQL: pedidos_web.restante está definido como total + envio - anticipo.
+4. Comprobación: productos $100.000, envío $15.000, anticipo $20.000 => restante $95.000.
+5. El total de productos y la métrica de ventas no incluyen envío; el restante sí.

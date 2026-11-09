@@ -129,7 +129,7 @@
         <td class="admin-web-table-cell">${esc(type)}</td><td class="admin-web-table-cell">${esc(o.fecha_entrega)}</td>
         <td class="admin-web-table-cell font-bold">${esc(clientName(o._client) !== 'Cliente sin nombre' ? clientName(o._client) : (o.cliente_nombre || 'Cliente sin nombre'))}</td><td class="admin-web-table-cell">${esc(o.contacto || o.telefono || o._client?.telefono)}</td>
         <td class="admin-web-table-cell">${esc(o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ') || o._client?.direccion)}</td>
-        <td class="admin-web-table-cell font-bold">${cop(o.total)}</td><td class="admin-web-table-cell">${cop(o.domicilio_envio ?? o.envio)}</td>
+        <td class="admin-web-table-cell font-bold">${cop(o.total)}</td><td class="admin-web-table-cell">${cop(o.envio ?? o.domicilio_envio)}</td>
         <td class="admin-web-table-cell">${cop(o.anticipo)}</td><td class="admin-web-table-cell font-black text-pink-700">${cop(rest)}</td>
         <td class="admin-web-table-cell"><button type="button" class="admin-web-button" onclick="viewWebOrder('${esc(o.id)}')"><i class="fa-regular fa-images mr-1"></i> Ver (${photoCount})</button></td>
         <td class="admin-web-table-cell"><div class="flex items-center gap-2"><select class="admin-web-status" aria-label="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select><button type="button" class="admin-web-delete" title="Eliminar pedido" aria-label="Eliminar pedido" onclick="deleteWebOrder('${esc(o.id)}')"><i class="fa-solid fa-trash"></i></button></div></td>
@@ -161,7 +161,7 @@
   }
   function orderBalance(order) {
     const total = Number(order?.total || 0);
-    const shipping = Number(order?.domicilio_envio ?? order?.envio ?? order?.domicilio ?? 0);
+    const shipping = Number(order?.envio ?? order?.domicilio_envio ?? order?.domicilio ?? 0);
     const advance = Number(order?.anticipo || 0);
     return Math.max(0, total + shipping - advance);
   }
@@ -658,7 +658,7 @@
     const imagesHtml = images.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" class="admin-web-order-image"></a>`).join('');
     const orderType = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
     const orderName = o.numero_pedido || o.codigo || '';
-    showAdminWebModal(`Pedido ${orderName}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c) !== 'Cliente sin nombre' ? clientName(c) : o.cliente_nombre],['Teléfono',o.contacto||o.telefono||c.telefono],['Tipo',orderType],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ')],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.domicilio_envio ?? o.envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div><section class="mt-5 rounded-xl border border-amber-200 bg-amber-50/50 p-3"><label for="web-order-note-input" class="block text-xs font-black uppercase text-slate-700 mb-2">Nota del pedido</label><textarea id="web-order-note-input" rows="3" class="admin-web-input w-full" placeholder="Escribe una nota para este pedido...">${esc(o.nota || '')}</textarea><button type="button" class="admin-web-button mt-2" onclick="saveWebOrderNote('${esc(o.id)}')"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar nota</button></section>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
+    showAdminWebModal(`Pedido ${orderName}`, `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">${[['Cliente',clientName(c) !== 'Cliente sin nombre' ? clientName(c) : o.cliente_nombre],['Teléfono',o.contacto||o.telefono||c.telefono],['Tipo',orderType],['Fecha de entrega',o.fecha_entrega],['Ubicación',o.ubicacion || [o.direccion,o.barrio,o.ciudad].filter(Boolean).join(', ')],['Estado',o.estado],['Total',cop(o.total)],['Domicilio / envío',cop(o.envio ?? o.domicilio_envio)],['Anticipo',cop(o.anticipo)],['Restante',cop(rest)]].map(([k,v])=>`<div class="bg-slate-50 rounded-xl p-3"><span class="block text-[9px] uppercase font-black text-slate-400">${esc(k)}</span><strong class="block text-xs text-slate-800 mt-1 break-words">${esc(v||'—')}</strong></div>`).join('')}</div><h4 class="text-xs font-black uppercase text-slate-700 mb-3">Productos y referencias</h4><div class="space-y-2">${productsHtml}</div><section class="mt-5 rounded-xl border border-amber-200 bg-amber-50/50 p-3"><label for="web-order-note-input" class="block text-xs font-black uppercase text-slate-700 mb-2">Nota del pedido</label><textarea id="web-order-note-input" rows="3" class="admin-web-input w-full" placeholder="Escribe una nota para este pedido...">${esc(o.nota || '')}</textarea><button type="button" class="admin-web-button mt-2" onclick="saveWebOrderNote('${esc(o.id)}')"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar nota</button></section>${images.length?`<h4 class="text-xs font-black uppercase text-slate-700 mt-5 mb-3">Imágenes del pedido</h4><div class="flex flex-wrap gap-2">${imagesHtml}</div>`:''}`);
   };
 
   window.saveWebOrderNote = async function(id) {
@@ -850,7 +850,22 @@
       return sum + price * quantity;
     },0);
     const input = $('web-order-total'); if (input) input.value = String(total);
+    if (typeof window.updateWebOrderBalancePreview === 'function') window.updateWebOrderBalancePreview();
   };
+
+  // Única fórmula para el saldo del formulario: total de productos + envío - anticipo.
+  function updateWebOrderBalancePreview() {
+    const total = Math.max(0, Number($('web-order-total')?.value || 0));
+    const shipping = Math.max(0, Number($('web-order-shipping')?.value || 0));
+    const advance = Math.max(0, Number($('web-order-advance')?.value || 0));
+    const remaining = Math.max(0, total + shipping - advance);
+    const amount = $('web-order-remaining');
+    if (amount) amount.textContent = cop(remaining);
+    const breakdown = $('web-order-balance-detail');
+    if (breakdown) breakdown.textContent = `Productos: ${cop(total)} + Envío: ${cop(shipping)} − Anticipo: ${cop(advance)}`;
+    return remaining;
+  }
+  window.updateWebOrderBalancePreview = updateWebOrderBalancePreview;
 
   window.openNewWebOrder = function() {
     const content = `
@@ -874,6 +889,7 @@
         </div>
         <div class="rounded-2xl border border-slate-100 p-3 sm:p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h4 class="font-black text-xs text-slate-800">Productos del pedido</h4><button type="button" onclick="addWebOrderProductRow()" class="admin-web-button"><i class="fa-solid fa-plus mr-1"></i> Añadir producto</button></div><div id="web-order-products" class="space-y-2"></div><p class="text-[10px] text-slate-400">Busca productos del catálogo y selecciona talla, color y accesorios. También puedes registrar un producto manual.</p></div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div><label class="admin-web-label">Total productos ($) *</label><input id="web-order-total" class="admin-web-input" type="number" min="0" step="1" value="0" required></div><div><label class="admin-web-label">Domicilio / envío ($)</label><input id="web-order-shipping" class="admin-web-input" type="number" min="0" step="1" value="0"></div><div><label class="admin-web-label">Anticipo ($)</label><input id="web-order-advance" class="admin-web-input" type="number" min="0" step="1" value="0"></div></div>
+        <div class="rounded-xl border border-pink-200 bg-pink-50 p-4" aria-live="polite"><div class="flex flex-wrap items-center justify-between gap-2"><span class="text-sm font-black text-slate-700">Restante por pagar (productos + envío − anticipo)</span><strong id="web-order-remaining" class="text-xl font-black text-pink-700">$ 0</strong></div><p id="web-order-balance-detail" class="text-xs text-slate-600 mt-1">Productos: $ 0 + Envío: $ 0 − Anticipo: $ 0</p></div>
         <div><label class="admin-web-label">Fotografías del pedido</label><input id="web-order-images" class="admin-web-input" type="file" accept="image/*" multiple><p class="text-[10px] text-slate-400 mt-1">Puedes adjuntar varias fotos. Se almacenan en el bucket pedidos-web de Supabase.</p></div>
         <div><label class="admin-web-label">Estado inicial</label><select id="web-order-state" class="admin-web-input">${states.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
         <div class="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onclick="closeAdminWebModal()" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold">Cancelar</button><button id="web-order-save" type="submit" class="px-5 py-3 rounded-xl fuchsia-btn text-xs font-black">Guardar pedido</button></div>
@@ -884,6 +900,8 @@
     $('web-order-client-results').hidden = true;
     $('web-new-client-panel').querySelectorAll('input').forEach(input => { input.disabled = true; input.required = false; });
     addProductRow();
+    ['web-order-total','web-order-shipping','web-order-advance'].forEach(id => $(id).addEventListener('input', updateWebOrderBalancePreview));
+    updateWebOrderBalancePreview();
     $('web-order-client-search').addEventListener('input', event => {
       $('web-order-client').value = '';
       populateOrderClientSelect(event.target.value);

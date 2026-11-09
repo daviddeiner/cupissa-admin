@@ -32,3 +32,21 @@
 .admin-web-client-option small { color:#be185d; font-size:10px; white-space:nowrap; }
 .admin-web-client-new { color:#be185d; font-size:12px; font-weight:900; }
 .admin-web-client-empty { padding:9px 12px; color:#64748b; font-size:11px; }
+
+
+/* CUPISSA | Selector de productos con miniaturas en agendamiento */
+.admin-web-product-picker { position:relative; min-width:0; }
+.admin-web-product-results { max-height:310px; overflow-y:auto; margin-top:5px; border:1px solid #fbcfe8; border-radius:14px; background:#fff; box-shadow:0 15px 32px rgba(70,22,52,.13); }
+.admin-web-product-results[hidden], .admin-web-product-selected[hidden] { display:none !important; }
+.admin-web-product-option { display:flex; align-items:center; gap:11px; width:100%; min-width:0; text-align:left; padding:9px 11px; border-bottom:1px solid #fce7f3; background:#fff; color:#334155; }
+button.admin-web-product-option:hover, button.admin-web-product-option:focus-visible { background:#fdf2f8; outline:2px solid #f9a8d4; outline-offset:-2px; }
+.admin-web-product-thumb, .admin-web-product-no-photo { width:52px; height:52px; flex:0 0 52px; border-radius:9px; object-fit:cover; background:#f8eaf1; }
+.admin-web-product-no-photo { display:flex; align-items:center; justify-content:center; color:#be185d; font-size:17px; }
+.admin-web-product-option-text { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
+.admin-web-product-option-text strong { font-size:12px; line-height:1.3; font-weight:800; white-space:normal; overflow-wrap:anywhere; }
+.admin-web-product-option-text small { font-size:11px; color:#be185d; font-weight:700; }
+.admin-web-product-selected { margin-top:6px; border:1px solid #fbcfe8; border-radius:12px; overflow:hidden; }
+.admin-web-product-selected .admin-web-product-option { background:#fff7fb; border:0; }
+.admin-web-product-check { color:#be185d; font-size:15px; }
+.admin-web-product-custom { color:#be185d; }
+.admin-web-product-empty { padding:10px 12px; font-size:11px; color:#64748b; }

@@ -698,9 +698,8 @@
     const container = $('web-order-products'); if (!container) return;
     const rowUid = `order-variant-${++orderProductRowCounter}`;
     const row = document.createElement('div'); row.className = 'admin-order-product-row admin-web-product-row';
-    const options = getCatalogProducts().map(product => `<option value="${esc(product.id)}">${esc(product.nombre || 'Producto sin nombre')} · ${cop(product.precio_detal)}</option>`).join('');
     row.innerHTML = `
-      <div class="wide"><label class="admin-web-label">Buscar producto del catálogo</label><input class="admin-web-input" data-field="product_search" type="search" placeholder="Escribe para filtrar productos..."><select class="admin-web-input mt-2" data-field="producto_id"><option value="">Selecciona un producto</option>${options}<option value="__custom__">＋ Producto nuevo / personalizado</option></select><input class="admin-web-input mt-2 hidden" data-field="custom_name" placeholder="Nombre del producto nuevo"></div>
+      <div class="wide admin-web-product-picker"><label class="admin-web-label">Seleccionar producto del catálogo</label><input class="admin-web-input" data-field="product_search" type="search" autocomplete="off" placeholder="Buscar producto por nombre..." aria-label="Buscar productos con fotografías" aria-expanded="false"><select class="hidden" tabindex="-1" aria-hidden="true" data-field="producto_id"><option value="">Selecciona un producto</option><option value="__custom__">Producto nuevo / personalizado</option></select><div class="admin-web-product-results" data-field="product_results" hidden></div><div class="admin-web-product-selected" data-field="product_selected" hidden></div><input class="admin-web-input mt-2 hidden" data-field="custom_name" placeholder="Nombre del producto nuevo"></div>
       <div><label class="admin-web-label">Precio unitario ($)</label><input class="admin-web-input" data-field="precio" type="number" min="0" step="1" value="0" required></div>
       <div><label class="admin-web-label">Cantidad</label><input class="admin-web-input" data-field="cantidad" type="number" min="1" step="1" value="1" required></div>
       <div><label class="admin-web-label">Talla / medida</label><input class="admin-web-input" data-field="talla" list="${rowUid}-sizes" placeholder="Elegir o escribir"></div>
@@ -724,11 +723,70 @@
     };
     Object.values(datalistIds).forEach(id => { const list = document.createElement('datalist'); list.id = id; row.appendChild(list); });
 
-    productSearch.addEventListener('input', () => {
-      const q = productSearch.value.trim().toLocaleLowerCase('es');
+    // Selector personalizado: los <option> HTML no pueden contener fotografías.
+    // Conservamos el select oculto para no alterar la lógica de variantes ni el guardado.
+    const productResults = row.querySelector('[data-field="product_results"]');
+    const productSelected = row.querySelector('[data-field="product_selected"]');
+    const normalizeSearch = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
+    const productPhoto = product => {
+      const first = Array.isArray(product?.fotos) ? product.fotos[0] : null;
+      const raw = typeof first === 'string' ? first : (first?.url || first?.foto || first?.imagen || product?.imagen_url || product?.imagen || '');
+      return typeof raw === 'string' && /^(https?:\/\/|data:image\/|blob:)/i.test(raw) ? raw : '';
+    };
+    const thumb = product => {
+      const photo = productPhoto(product);
+      return photo ? `<img class="admin-web-product-thumb" loading="lazy" src="${esc(photo)}" alt="" onerror="this.replaceWith(document.createTextNode('Sin foto'))">` : '<span class="admin-web-product-no-photo"><i class="fa-regular fa-image"></i></span>';
+    };
+    const setProductSelection = (id, label) => {
+      productSelect.innerHTML = `<option value="">Selecciona un producto</option><option value="${esc(id)}" selected>${esc(label)}</option>`;
+      productSelect.value = String(id);
+      productSelect.dispatchEvent(new Event('change'));
+      productResults.hidden = true;
+      productSearch.setAttribute('aria-expanded', 'false');
+      if (id === '__custom__') {
+        productSearch.value = 'Producto nuevo / personalizado';
+        productSelected.hidden = true;
+      } else {
+        const product = getCatalogProducts().find(item => String(item.id) === String(id));
+        productSearch.value = String(product?.nombre || label);
+        productSelected.innerHTML = `<div class="admin-web-product-option">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product?.nombre || label)}</strong><small>${cop(product?.precio_detal)}</small></span><span class="admin-web-product-check"><i class="fa-solid fa-check"></i></span></div>`;
+        productSelected.hidden = false;
+      }
+    };
+    const renderProductResults = () => {
+      const query = normalizeSearch(productSearch.value.trim());
       const catalog = getCatalogProducts();
-      productSelect.innerHTML = '<option value="">Selecciona un producto</option>' + catalog.filter(item => !q || String(item.nombre || '').toLocaleLowerCase('es').includes(q)).map(item => `<option value="${esc(item.id)}">${esc(item.nombre || 'Producto')} · ${cop(item.precio_detal)}</option>`).join('') + '<option value="__custom__">＋ Producto nuevo / personalizado</option>';
+      const matches = catalog.filter(item => !query || normalizeSearch(item.nombre).includes(query)).slice(0, 70);
+      productResults.innerHTML = matches.map((product, idx) => `<button type="button" class="admin-web-product-option" data-product-result="${idx}">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product.nombre || 'Producto sin nombre')}</strong><small>${cop(product.precio_detal)}</small></span></button>`).join('') + `<button type="button" class="admin-web-product-option admin-web-product-custom" data-product-custom="1"><span class="admin-web-product-no-photo"><i class="fa-solid fa-plus"></i></span><span class="admin-web-product-option-text"><strong>Producto nuevo / personalizado</strong><small>Registrar manualmente</small></span></button>` + (!matches.length ? '<p class="admin-web-product-empty">No se encontraron productos del catálogo.</p>' : '');
+      productResults.hidden = false;
+      productSearch.setAttribute('aria-expanded', 'true');
+      productResults.querySelectorAll('[data-product-result]').forEach(button => button.addEventListener('click', () => {
+        const product = matches[Number(button.dataset.productResult)];
+        if (product) setProductSelection(product.id, product.nombre || 'Producto');
+      }));
+      productResults.querySelector('[data-product-custom]')?.addEventListener('click', () => setProductSelection('__custom__', 'Producto nuevo / personalizado'));
+    };
+    productSearch.addEventListener('focus', renderProductResults);
+    productSearch.addEventListener('input', () => {
+      productSelect.value = '';
+      productSelected.hidden = true;
+      row.dataset.productName = '';
+      renderProductResults();
     });
+    productSearch.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { productResults.hidden = true; productSearch.setAttribute('aria-expanded', 'false'); }
+      if (event.key === 'Enter' && !productResults.hidden) {
+        event.preventDefault();
+        productResults.querySelector('[data-product-result], [data-product-custom]')?.click();
+      }
+    });
+    document.addEventListener('click', event => {
+      if (!row.isConnected) return;
+      if (!row.querySelector('.admin-web-product-picker')?.contains(event.target)) {
+        productResults.hidden = true;
+        productSearch.setAttribute('aria-expanded', 'false');
+      }
+    }, { signal: row._productPickerAbort?.signal });
 
     const chooseVariant = () => {
       const product = getCatalogProducts().find(item => String(item.id) === String(productSelect.value));
@@ -754,7 +812,7 @@
     productSelect.addEventListener('change', () => {
       if (productSelect.value === '__custom__') {
         customName.classList.remove('hidden'); customName.value = ''; row.dataset.productName = ''; row.dataset.productRef = '';
-        priceInput.value = '0';
+        priceInput.value = '0'; productSelected.hidden = true;
       } else if (!productSelect.value) {
         customName.classList.add('hidden'); row.dataset.productName = ''; priceInput.value = '0';
       } else chooseVariant();
@@ -965,19 +1023,44 @@
       };
       const { data: savedOrder, error } = await db.from('pedidos_web').insert([payload]).select('*').single();
       if (error) throw error;
-      // Notificación segura a través de la misma Edge Function que usa el sitio público.
-      // Nunca se envía la clave privada del servicio de correo al navegador.
+      // Solicitar el mismo correo del portal público usando el pedido ya guardado.
+      // La solicitud se autentica con el JWT real (no con la clave anon ni con el correo remitente).
       let mailWarning = '';
       try {
+        const { data: sessionResult, error: sessionError } = await db.auth.getSession();
+        if (sessionError) throw sessionError;
+        let session = sessionResult?.session;
+        if (!session?.access_token) throw new Error('No hay sesión de administrador. Inicia sesión de nuevo.');
+        // Fuerza una renovación cuando se aproxima el vencimiento del JWT.
+        if (session.expires_at && session.expires_at * 1000 < Date.now() + 60_000) {
+          const renewed = await db.auth.refreshSession();
+          if (renewed.error) throw renewed.error;
+          session = renewed.data?.session;
+        }
+        if (!session?.access_token) throw new Error('No se pudo obtener un token de sesión válido.');
         const { data: emailResult, error: emailError } = await db.functions.invoke('cupissa-emails', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
           body: { action:'admin_order_confirmation', order_id:savedOrder.id }
         });
-        if (emailError) throw emailError;
-        if (emailResult?.error) throw new Error(emailResult.error);
+        if (emailError) {
+          let detail = emailError.message || 'No se pudo enviar el correo.';
+          try {
+            const ctx = emailError.context;
+            if (ctx && typeof ctx.clone === 'function') {
+              const response = await ctx.clone().json();
+              detail = response.detail || response.error || detail;
+              if (response.code) detail = `${response.code}: ${detail}`;
+            }
+          } catch (_) { /* Respuesta no JSON: conservar error base */ }
+          throw new Error(detail);
+        }
+        if (emailResult?.error) throw new Error(emailResult.detail || emailResult.error);
         if (emailResult?.result?.skipped) throw new Error(emailResult.result.reason || 'El envío fue omitido.');
+        if (emailResult?.result?.ok === false) throw new Error(emailResult.result.error || 'El proveedor no confirmó el envío.');
       } catch (emailError) {
+        const reason = String(emailError?.message || emailError || 'Error desconocido').slice(0, 350);
         console.error('Pedido guardado, pero el correo no fue confirmado:', emailError);
-        mailWarning = ' El pedido quedó registrado, pero NO se pudo confirmar el envío del correo. Revisa la Edge Function cupissa-emails y sus registros.';
+        mailWarning = ` El pedido quedó registrado, pero el correo no se confirmó: ${reason}. No vuelvas a registrar el pedido.`;
       }
       closeAdminWebModal(); await loadWebOrders(); await loadWebClients();
       alert(mailWarning ? 'Pedido guardado.' + mailWarning : 'Pedido registrado y correo de confirmación enviado correctamente.');

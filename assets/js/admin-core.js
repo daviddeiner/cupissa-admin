@@ -752,7 +752,15 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         async function saveClientChanges() {
             const clientId = document.getElementById('edit-client-id').value;
             const nuevoCupo = parseFloat(document.getElementById('edit-client-cupo').value) || 0;
-            await supabaseClient.from('clientes').update({ cupo_disponible: nuevoCupo }).eq('id', clientId);
+            const { error } = await supabaseClient
+  .from('clientes')
+  .update({
+    cupo_total: nuevoCupo,
+    cupo_disponible: nuevoCupo
+  })
+  .eq('id', clientId);
+
+if (error) throw error;
             closeEditModal();
             fetchAdminData();
             alert('¡Actualizado con éxito!');

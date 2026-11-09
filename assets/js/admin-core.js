@@ -1653,12 +1653,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 document.getElementById('product-publish-modes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
-            if (!editId && sourcePhotoCount > 1 && !['single', 'gallery'].includes(selectedPublishMode)) {
-                window.showProductStep?.(2);
-                alert('Selecciona cómo deseas publicar las fotografías principales, incluidas las fotos de colores: por separado o juntas en una galería.');
-                document.getElementById('product-publish-modes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
+            // La modalidad es opcional: sin selección se guarda una única publicación con toda la galería.
             
             const submitBtn = productForm?.querySelector('button[type="submit"]');
             if (!submitBtn) {
@@ -1727,20 +1722,21 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 // Cada entrada mantiene su original para la vista ampliada del catálogo.
                 const galleryPhotoEntries = [];
                 const seenGalleryPhotos = new Set();
-                const addGalleryPhoto = (photo, original = photo) => {
+                const addGalleryPhoto = (photo, original = photo, selectionKey = photo) => {
                     const finalPhoto = String(photo || '').trim();
                     if (!finalPhoto || seenGalleryPhotos.has(finalPhoto)) return;
                     seenGalleryPhotos.add(finalPhoto);
                     galleryPhotoEntries.push({
                         photo: finalPhoto,
-                        original: String(original || finalPhoto).trim() || finalPhoto
+                        original: String(original || finalPhoto).trim() || finalPhoto,
+                        selectionKey: String(selectionKey || photo).trim()
                     });
                 };
                 uploadedPhotos.forEach((photo, index) => {
-                    addGalleryPhoto(photo, uploadedOriginals[index] || photo);
+                    addGalleryPhoto(photo, uploadedOriginals[index] || photo, tempBase64Photos[index] || photo);
                 });
-                uploadedColors.forEach(color => {
-                    if (color.foto) addGalleryPhoto(color.foto, color.foto_original || color.foto);
+                uploadedColors.forEach((color, index) => {
+                    if (color.foto) addGalleryPhoto(color.foto, color.foto_original || color.foto, tempColores[index]?.foto || tempColores[index]?.imagen || color.foto);
                 });
 
                 baseProductData = {
@@ -1785,36 +1781,34 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     if (error) throw error;
                 } else {
                     const photosCount = galleryPhotoEntries.length;
-                    savedProductCount = photosCount > 1 ? photosCount : 1;
-
                     if (photosCount > 1 && selectedPublishMode === null) {
-                        // Sin modalidad seleccionada: una sola publicación con toda la galería.
+                        // Comportamiento predeterminado: una sola publicación con todas las fotos.
+                        savedProductCount = 1;
                         const { error } = await supabaseClient.from('productos').insert([{
                             ...baseProductData,
-                            fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : galleryPhotoEntries.map(entry => entry.photo),
-                            fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : galleryPhotoEntries.map(entry => entry.original)
+                            fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : [defaultImage],
+                            fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : [defaultImage]
                         }]);
                         if (error) throw error;
                     } else if (photosCount > 1) {
-                        const productsToInsert = [];
-                        const publishMode = selectedPublishMode;
-                        for (let i = 0; i < photosCount; i++) {
-                            const orderedEntries = [
-                                galleryPhotoEntries[i],
-                                ...galleryPhotoEntries.filter((_, photoIndex) => photoIndex !== i)
-                            ];
-                            const selectedEntries = publishMode === 'single'
-                                ? [orderedEntries[0]]
-                                : orderedEntries;
-                            productsToInsert.push({
+                        const selectedCoverSources = new Set(Array.isArray(window.CUPISSA_PRODUCT_PUBLISH_COVERS) ? window.CUPISSA_PRODUCT_PUBLISH_COVERS : []);
+                        // Lee la selección activa desde el estado de interfaz, que permanece sincronizado con las casillas.
+                        const selectedCoverEntries = galleryPhotoEntries.filter(entry => selectedCoverSources.has(entry.selectionKey));
+                        const coverEntries = selectedCoverEntries.length ? selectedCoverEntries : galleryPhotoEntries;
+                        const productsToInsert = coverEntries.map(coverEntry => {
+                            const orderedEntries = [coverEntry, ...galleryPhotoEntries.filter(entry => entry.photo !== coverEntry.photo)];
+                            const selectedEntries = selectedPublishMode === 'single' ? [coverEntry] : orderedEntries;
+                            return {
                                 ...baseProductData,
                                 fotos: selectedEntries.map(entry => entry.photo),
                                 fotos_originales: selectedEntries.map(entry => entry.original)
-                            });
-                        }
+                            };
+                        });
+                        savedProductCount = productsToInsert.length;
                         const { error } = await supabaseClient.from('productos').insert(productsToInsert);
                         if (error) throw error;
                     } else {
+                        savedProductCount = 1;
                         const singleData = {
                             ...baseProductData,
                             fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : [defaultImage],

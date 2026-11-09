@@ -312,6 +312,64 @@
   let colorPhoto = '';
   let colorPhotoOriginal = '';
   let publishMode = null;
+  let publishCoverSources = new Set();
+  let publishKnownSources = new Set();
+
+  function getPublishPhotoChoiceEntries() {
+    const entries = [];
+    (Array.isArray(tempBase64Photos) ? tempBase64Photos : []).forEach((photo, index) => {
+      const source = String(photo || '').trim();
+      if (source) entries.push({ kind: 'product', index, source, key: source });
+    });
+    (Array.isArray(tempColores) ? tempColores : []).forEach((item, index) => {
+      const source = typeof item === 'string' ? '' : String(item?.foto || item?.imagen || item?.imagen_url || '').trim();
+      if (source) entries.push({ kind: 'color', index, source, key: source });
+    });
+    return entries;
+  }
+
+  function syncPublishCoverSources() {
+    const entries = getPublishPhotoChoiceEntries();
+    const current = new Set(entries.map(entry => entry.key));
+    entries.forEach(entry => {
+      if (publishMode && !publishKnownSources.has(entry.key)) publishCoverSources.add(entry.key);
+    });
+    [...publishCoverSources].forEach(source => { if (!current.has(source)) publishCoverSources.delete(source); });
+    if (publishMode && !publishCoverSources.size && entries.length) publishCoverSources.add(entries[0].key);
+    publishKnownSources = current;
+    document.querySelectorAll('[data-publish-cover-kind]').forEach(input => {
+      const entry = entries.find(item => item.kind === input.dataset.publishCoverKind && String(item.index) === String(input.dataset.publishCoverIndex));
+      input.checked = !!entry && publishCoverSources.has(entry.key);
+      input.disabled = !publishMode;
+      const label = input.closest('.admin-publish-cover-choice');
+      label?.classList.toggle('hidden', !publishMode);
+    });
+    const help = $('product-publish-cover-help');
+    const selected = $('product-publish-cover-selected');
+    help?.classList.toggle('hidden', !publishMode);
+    selected?.classList.toggle('hidden', !publishMode);
+    if (selected && publishMode) {
+      selected.textContent = `${publishCoverSources.size} portada(s) seleccionada(s). Se crearán ${publishCoverSources.size} publicación(es).`;
+    }
+    window.CUPISSA_PRODUCT_PUBLISH_COVERS = [...publishCoverSources];
+  }
+
+  window.setProductPublishCover = function(kind, index, checked) {
+    const entry = getPublishPhotoChoiceEntries().find(item => item.kind === String(kind) && Number(item.index) === Number(index));
+    if (!entry || !publishMode) return;
+    if (checked) publishCoverSources.add(entry.key);
+    else {
+      const remaining = new Set(publishCoverSources);
+      remaining.delete(entry.key);
+      if (!remaining.size) {
+        alert('Selecciona al menos una fotografía como portada.');
+        syncPublishCoverSources();
+        return;
+      }
+      publishCoverSources.delete(entry.key);
+    }
+    syncPublishCoverSources();
+  };
 
   function getProductMainPhotoCount() {
     const mainPhotos = Array.isArray(tempBase64Photos) ? tempBase64Photos : [];
@@ -323,13 +381,19 @@
 
   function setPublishMode(mode) {
     const panel = $('product-publish-modes');
-    const photoCount = Number(panel?.dataset.photoCount || 0);
-    if ((mode === 'single' || mode === 'gallery') && photoCount < 2) {
-      alert('Agrega al menos dos fotografías principales o fotos de colores para elegir la modalidad de publicación.');
-      return null;
-    }
+    const photoCount = Number(panel?.dataset.photoCount || getProductMainPhotoCount());
+    if ((mode === 'single' || mode === 'gallery') && photoCount < 2) return null;
+    const previousMode = publishMode;
     publishMode = mode === 'single' || mode === 'gallery' ? mode : null;
     window.CUPISSA_PRODUCT_PUBLISH_MODE = publishMode;
+    if (publishMode && !previousMode) {
+      publishCoverSources = new Set(getPublishPhotoChoiceEntries().map(entry => entry.key));
+      publishKnownSources = new Set(publishCoverSources);
+    }
+    if (!publishMode) {
+      publishCoverSources.clear();
+      publishKnownSources = new Set(getPublishPhotoChoiceEntries().map(entry => entry.key));
+    }
     document.querySelectorAll('#product-publish-modes [data-publish-mode]').forEach(button => {
       const active = button.dataset.publishMode === publishMode;
       button.classList.toggle('is-active', active);
@@ -337,6 +401,7 @@
       const radio = button.querySelector('input[type=radio]');
       if (radio) radio.checked = active;
     });
+    syncPublishCoverSources();
     return publishMode;
   }
   window.setProductPublishMode = setPublishMode;
@@ -351,15 +416,16 @@
     const countLabel = panel.querySelector('[data-publish-count]');
     if (countLabel) {
       countLabel.textContent = photoCount < 2
-        ? 'Agrega al menos 2 fotos principales o fotos de colores para habilitar las opciones.'
-        : `${photoCount} fotografías principales disponibles. Elige cómo crear las publicaciones.`;
+        ? 'Con estas fotos se creará una sola publicación. No necesitas elegir una modalidad.'
+        : `${photoCount} fotografías disponibles. Sin modalidad se crea una publicación completa; con modalidad puedes elegir las portadas.`;
     }
     panel.querySelectorAll('[data-publish-mode]').forEach(button => {
       const disabled = photoCount < 2 || isEditingExistingProduct;
       button.disabled = disabled;
       button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
     });
-    if (photoCount < 2) setPublishMode(null);
+    if (photoCount < 2 && publishMode) setPublishMode(null);
+    syncPublishCoverSources();
   }
   window.updateProductPublishModeVisibility = updateProductPublishModeVisibility;
   window.setProductPublishPhotoCount = function() {
@@ -448,15 +514,17 @@
         <button type="button" data-publish-mode="single" aria-pressed="false" class="admin-publish-mode">
           <span class="admin-publish-radio" aria-hidden="true"></span>
           <strong><i class="fa-solid fa-images mr-1"></i> PUBLICAR PRODUCTOS POR SEPARADO</strong>
-          <small>Una publicación por cada foto, usando esa imagen como portada. Los colores y sus fotos se conservan como variaciones del producto.</small>
+          <small>Crea una publicación independiente por cada foto que marques como portada. Cada publicación conserva los mismos datos y variaciones, y muestra únicamente su portada.</small>
         </button>
         <button type="button" data-publish-mode="gallery" aria-pressed="false" class="admin-publish-mode">
           <span class="admin-publish-radio" aria-hidden="true"></span>
           <strong><i class="fa-solid fa-layer-group mr-1"></i> PUBLICAR PRODUCTOS JUNTOS</strong>
-          <small>Crea una publicación por cada foto como portada. Cada publicación tendrá su propia galería con todas las fotos principales y las fotos asignadas a colores.</small>
+          <small>Crea una publicación por cada foto marcada como portada. Cada publicación tendrá esa portada y conservará todas las fotos principales y de colores en su galería.</small>
         </button>
       </div>
-      <p class="text-[10px] font-semibold text-slate-600 mt-2">Esta selección solo es necesaria cuando hay dos o más fotos principales, incluidas las fotos de colores.</p>`;
+      <p class="text-[10px] font-semibold text-slate-600 mt-2">Sin elegir modalidad se crea una sola publicación con toda la galería. Si eliges una modalidad, marca las fotos que serán portada de cada publicación.</p>
+      <p id="product-publish-cover-help" class="text-[10px] font-bold text-pink-700 mt-2 hidden">Marca las fotos que deseas usar como portada. Cada foto marcada creará una publicación.</p>
+      <p id="product-publish-cover-selected" class="text-[10px] text-slate-600 mt-1 hidden"></p>`;
     if (!modePanel.dataset.eventsReady) {
       modePanel.addEventListener('click', event => {
         const option = event.target.closest('[data-publish-mode]');
@@ -480,7 +548,7 @@
         photoPanel.appendChild(pasteHelp);
       }
     }
-    if (modePanel.parentNode !== step2) step2.appendChild(modePanel);
+    if (modePanel.parentNode !== step1) step1.appendChild(modePanel);
 
     // El formulario de colores ahora admite su propia fotografía.
     const colorPhotoArea = document.createElement('div');
@@ -942,7 +1010,15 @@
       text.textContent = `${color.nombre} (+${new Intl.NumberFormat('es-CO').format(Number(color.incremento || 0))})`;
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'ml-1 text-rose-600 font-black'; remove.textContent = '×';
       remove.addEventListener('click', () => { tempColores.splice(index, 1); window.renderColoresTags(); });
-      tag.append(text); addProductOnlyPriceEditor(tag, 'colores', index, color.incremento); tag.append(remove); addReplaceOptionButton(tag, 'colores', index); container.appendChild(tag);
+      tag.append(text); addProductOnlyPriceEditor(tag, 'colores', index, color.incremento); tag.append(remove); addReplaceOptionButton(tag, 'colores', index);
+      if (color.foto || color.imagen || color.imagen_url) {
+        const choice = document.createElement('label'); choice.className = 'admin-publish-cover-choice hidden';
+        const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.dataset.publishCoverKind = 'color'; checkbox.dataset.publishCoverIndex = String(index);
+        checkbox.addEventListener('change', () => window.setProductPublishCover?.('color', index, checkbox.checked));
+        const caption = document.createElement('span'); caption.textContent = 'Usar como portada';
+        choice.append(checkbox, caption); tag.appendChild(choice);
+      }
+      container.appendChild(tag);
     });
     window.setProductPublishPhotoCount?.();
   };
@@ -959,6 +1035,11 @@
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 text-[10px] font-black';
       remove.textContent = '×'; remove.title = 'Quitar fotografía'; remove.addEventListener('click', () => window.removeTempPhoto(index));
       wrapper.append(image, remove);
+      const coverChoice = document.createElement('label'); coverChoice.className = 'admin-publish-cover-choice hidden';
+      const coverCheckbox = document.createElement('input'); coverCheckbox.type = 'checkbox'; coverCheckbox.dataset.publishCoverKind = 'product'; coverCheckbox.dataset.publishCoverIndex = String(index);
+      coverCheckbox.addEventListener('change', () => window.setProductPublishCover?.('product', index, coverCheckbox.checked));
+      const coverCaption = document.createElement('span'); coverCaption.textContent = 'Usar como portada';
+      coverChoice.append(coverCheckbox, coverCaption); wrapper.appendChild(coverChoice);
       const replace = document.createElement('button'); replace.type = 'button';
       replace.className = 'admin-photo-edit'; replace.textContent = 'Cambiar foto'; replace.title = 'Cambiar esta imagen sin quitarla';
       replace.onclick = () => {

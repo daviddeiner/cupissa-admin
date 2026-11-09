@@ -52,7 +52,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <link rel="stylesheet" href="assets/css/admin-web.css?v=20261106-3">
-    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261107-accesorios-foto-v3">
+    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261108-portadas-multiples-v1">
     <style>
         .fuchsia-btn { background-color: #db2777; color: white; }
         .fuchsia-btn:hover { background-color: #be185d; }
@@ -659,21 +659,23 @@
                     <div id="product-publish-modes" class="product-publish-mode-panel" data-photo-count="0">
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <p class="text-xs font-black uppercase tracking-wide text-slate-800">¿Cómo deseas publicar estas fotografías?</p>
-                            <span data-publish-count class="text-[10px] font-semibold text-slate-500">Selecciona al menos 2 fotos para habilitar las opciones.</span>
+                            <span data-publish-count class="text-[10px] font-semibold text-slate-500">Sin seleccionar una modalidad, se creará una sola publicación con todas las fotos.</span>
                         </div>
                         <div class="admin-publish-modes">
                             <button type="button" data-publish-mode="single" aria-pressed="false" aria-disabled="true" disabled onclick="window.setProductPublishMode && window.setProductPublishMode('single')" class="admin-publish-mode">
                                 <span class="admin-publish-radio" aria-hidden="true"></span>
                                 <strong><i class="fa-solid fa-images mr-1"></i> PUBLICAR PRODUCTOS POR SEPARADO</strong>
-                                <small>Una foto por publicación. Cada foto crea un producto independiente con los mismos datos, precios y variaciones, pero guarda únicamente su propia fotografía.</small>
+                                <small>Crea una publicación independiente por cada foto que marques como portada. Cada publicación conserva los mismos datos y variaciones, y muestra únicamente su portada.</small>
                             </button>
                             <button type="button" data-publish-mode="gallery" aria-pressed="false" aria-disabled="true" disabled onclick="window.setProductPublishMode && window.setProductPublishMode('gallery')" class="admin-publish-mode">
                                 <span class="admin-publish-radio" aria-hidden="true"></span>
                                 <strong><i class="fa-solid fa-layer-group mr-1"></i> PUBLICAR PRODUCTOS JUNTOS</strong>
-                                <small>Una publicación por cada foto como portada. Cada publicación tendrá su perfil y contendrá todas las fotos en su galería.</small>
+                                <small>Crea una publicación por cada foto que marques como portada. Cada una tendrá esa portada y conservará todas las fotografías en su galería.</small>
                             </button>
                         </div>
-                        <p class="text-[10px] font-semibold text-slate-500 mt-2">Cuando haya 2 o más fotos, elige una de estas modalidades antes de guardar.</p>
+                        <p class="text-[10px] font-semibold text-slate-500 mt-2">No es obligatorio elegir una modalidad: si no seleccionas ninguna, se creará una sola publicación con toda la galería. Si eliges una modalidad, marca debajo qué fotografías quieres usar como portada de cada publicación.</p>
+                        <p id="product-publish-cover-help" class="text-[10px] font-bold text-pink-700 mt-2 hidden">Marca las fotos que deseas usar como portada. Cada foto marcada creará una publicación.</p>
+                        <p id="product-publish-cover-selected" class="text-[10px] text-slate-600 mt-1 hidden"></p>
                     </div>
                 </div>
 
@@ -717,9 +719,9 @@
     <script src="assets/js/00-config.js"></script>
     <script src="assets/js/admin-dialogs.js"></script>
     <script src="assets/js/admin-rentals.js"></script>
-    <script src="assets/js/admin-core.js?v=20261108-credit-clients-infinite-v1"></script>
+    <script src="assets/js/admin-core.js?v=20261108-publicacion-portadas-v1"></script>
     <script src="assets/js/admin-web.js?v=20261108-notes-profile-v2"></script>
-    <script src="assets/js/admin-enhancements.js?v=20261107-library-remove-v1"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261108-publicacion-portadas-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>

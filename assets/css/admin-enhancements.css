@@ -144,3 +144,11 @@
 /* Edición de fotos dentro de las tarjetas de colores y accesorios */
 .admin-option-photo-edit { position:static; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #059669; border-radius:8px; background:#ecfdf5; color:#047857; font-size:11px; font-weight:800; padding:6px 9px; cursor:pointer; white-space:nowrap; }
 .admin-option-photo-edit:hover, .admin-option-photo-edit:focus-visible { background:#d1fae5; outline:2px solid transparent; }
+
+
+/* Selector de portadas para publicaciones múltiples */
+.admin-publish-cover-choice{display:inline-flex;align-items:center;gap:6px;margin-top:7px;padding:5px 7px;border:1px solid #fbcfe8;border-radius:8px;background:#fff7fb;color:#9d174d;font-size:10px;font-weight:800;cursor:pointer}
+.admin-publish-cover-choice input{width:14px;height:14px;accent-color:#db2777;cursor:pointer}
+.admin-publish-cover-choice.hidden{display:none!important}
+.admin-image-option .admin-publish-cover-choice{flex-basis:100%;justify-content:flex-start}
+.admin-photo-preview .admin-publish-cover-choice{position:relative;display:flex;width:max-content;max-width:100%}

@@ -1,4 +1,4 @@
--- CUPISSA | Corrección de pago de última cuota
+-- CUPISSA | Pago administrativo con conciliación controlada de diferencias de redondeo
 -- Ejecutar una sola vez en Supabase > SQL Editor.
 -- Permite que los créditos liquidados no tengan próximo vencimiento.
 ALTER TABLE public.creditos
@@ -23,6 +23,9 @@ DECLARE
     v_pendiente NUMERIC;
     v_saldo_anterior NUMERIC;
     v_saldo_nuevo NUMERIC;
+    v_abono_saldo NUMERIC := 0;
+    v_diferencia_redondeo NUMERIC;
+    v_tolerancia_redondeo CONSTANT NUMERIC := 5;
     v_total_pendiente NUMERIC;
     v_proximo_vencimiento DATE;
     v_cantidad INTEGER := 0;
@@ -81,8 +84,10 @@ BEGIN
         RAISE EXCEPTION 'Este crédito no tiene cuotas registradas. No se modificó la deuda.';
     END IF;
 
-    -- Comprobar que las cuotas y el saldo coinciden.
-    IF ABS(v_total_pendiente - v_saldo_anterior) > 0.009 THEN
+    -- Se toleran exclusivamente diferencias pequeñas de redondeo (hasta 5 COP).
+    -- Diferencias superiores pueden indicar abonos incompletos o movimientos faltantes.
+    v_diferencia_redondeo := v_total_pendiente - v_saldo_anterior;
+    IF ABS(v_diferencia_redondeo) > v_tolerancia_redondeo THEN
         RAISE EXCEPTION
             'El saldo del crédito (%) no coincide con sus cuotas pendientes (%). No se aplicaron cambios.',
             v_saldo_anterior,
@@ -136,8 +141,21 @@ BEGIN
           );
     END IF;
 
-    -- Actualizar saldo general.
-    v_saldo_nuevo := GREATEST(0, v_saldo_anterior - v_abono);
+    -- Calcular el saldo desde las cuotas que siguen pendientes y no desde
+    -- la suma histórica del crédito: esto corrige los desajustes de 1-5 COP
+    -- sin alterar valor_cuota, monto_pagado ni la fecha de cada pago.
+    SELECT COALESCE(SUM(GREATEST(0, COALESCE(valor_cuota, 0) - COALESCE(monto_pagado, 0))), 0)
+    INTO v_saldo_nuevo
+    FROM public.cuotas_credito
+    WHERE credito_id::TEXT = p_credito_id;
+
+    -- El cupo disponible se repone con la disminución REAL del saldo del
+    -- crédito, no con una cantidad superior causada por redondeos de cuotas.
+    -- Si no disminuye, cancelar toda la transacción.
+    v_abono_saldo := v_saldo_anterior - v_saldo_nuevo;
+    IF v_abono_saldo <= 0 THEN
+        RAISE EXCEPTION 'El saldo del crédito no disminuyó tras registrar la cuota. No se aplicaron cambios.';
+    END IF;
 
     -- Buscar la siguiente cuota pendiente. Cuando no quede ninguna,
     -- v_proximo_vencimiento será NULL y eso es válido para un crédito PAGADO.
@@ -160,11 +178,11 @@ BEGIN
         END
     WHERE id::TEXT = p_credito_id;
 
-    -- Restaurar en el disponible el valor efectivamente abonado.
+    -- Restaurar en el disponible exclusivamente el saldo del crédito liberado.
     -- La regla especial de evaluación del cupo total requiere la función
     -- aplicar_pago_credito que utiliza el Portal de Pagos.
     UPDATE public.clientes
-    SET cupo_disponible = COALESCE(cupo_disponible, 0) + v_abono
+    SET cupo_disponible = COALESCE(cupo_disponible, 0) + v_abono_saldo
     WHERE id::TEXT = v_credito.cliente_id::TEXT;
 
     IF NOT FOUND THEN
@@ -175,7 +193,9 @@ BEGIN
         'ok', TRUE,
         'credito_id', p_credito_id,
         'cuota_id', p_cuota_id,
-        'abonado', v_abono,
+        'abonado_cuota', v_abono,
+        'abonado', v_abono_saldo,
+        'ajuste_redondeo_detectado', v_diferencia_redondeo,
         'saldo_restante', v_saldo_nuevo,
         'estado', CASE
             WHEN v_saldo_nuevo <= 0.009 THEN 'PAGADO'

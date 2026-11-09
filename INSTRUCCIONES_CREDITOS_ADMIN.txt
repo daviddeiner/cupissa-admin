@@ -9,3 +9,9 @@ CUPISSA ADMIN — AJUSTE AUTOMÁTICO DE CUPOS (15 MINUTOS)
 7. La evaluación de pagos Wompi depende de que aplicar_pago_credito registre las cuotas y fechas correspondientes. No se dispone de su definición para verificarlo.
 8. Haz respaldo de la base de datos y prueba en un entorno de ensayo antes de ejecutar SQL en producción.
 9. NO se modificaron catálogo, catálogo móvil, gestión de pedidos, imágenes ni lógica de precios.
+
+CORRECCIÓN DEL ERROR DE SALDOS POR REDONDEO (por ejemplo 165253 vs 165256):
+10. En Supabase > SQL Editor, ejecutar supabase/cupissa_admin_pagar_credito.sql ACTUALIZADO. Subir archivos web por sí solo NO modifica la función RPC que reside en Supabase.
+11. La diferencia máxima admitida entre saldo y cuotas es 5 COP. Si supera 5 COP, se seguirá bloqueando el pago y será necesario conciliar manualmente el caso.
+12. La deuda posterior se calcula sumando cuotas que aún quedan por pagar, y el cupo disponible se incrementa solo por la disminución real de esa deuda. No se alteran las fechas ni importes nominales de las cuotas.
+13. Realizar pruebas en un entorno de ensayo con una cuota parcial, la última cuota, deuda completa y un caso con diferencia superior a 5 COP.

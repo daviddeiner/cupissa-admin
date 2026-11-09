@@ -943,6 +943,8 @@
       const customerChoice = $('web-order-client').value;
       let client = null;
       let clientId = null;
+      let newlyCreatedClient = false;
+      let authInviteWarning = '';
       if (!customerChoice) throw new Error('Busca y selecciona un cliente antes de guardar el pedido.');
       if (customerChoice === '__new__') {
         const payloadClient = {
@@ -964,6 +966,7 @@
         const { data, error } = await db.from(tableName).insert([payloadClient]).select('*').single();
         if (error) throw error;
         client = data; clientId = data.id;
+        newlyCreatedClient = true;
         webClients.unshift(client);
       } else if (customerChoice.startsWith('web:')) {
         clientId = customerChoice.slice(4);
@@ -987,6 +990,7 @@
             }
             if (created.error) throw created.error;
             client = created.data;
+            newlyCreatedClient = true;
             webClients.unshift(client);
           }
           clientId = client.id;
@@ -997,6 +1001,28 @@
         throw new Error('Este cliente no tiene un correo válido. Actualiza su ficha antes de agendar para poder enviar la confirmación.');
       }
 
+      // Completar la creación del cliente en Supabase Authentication.
+      // Si la invitación falla, conservar la ficha del cliente y no duplicar el pedido.
+      if (newlyCreatedClient) {
+        try {
+          const { data: account, error: accountError } = await db.functions.invoke('cupissa-clientes-auth', {
+            body: { action:'sync_customer_auth', cliente_web_id:client.id }
+          });
+          if (accountError || account?.ok !== true) {
+            let detail = account?.detail || account?.error || accountError?.message || 'Error desconocido';
+            if (accountError?.context?.clone) {
+              try {
+                const response = await accountError.context.clone().json();
+                detail = response.detail || response.error || detail;
+              } catch (_) {}
+            }
+            throw new Error(detail);
+          }
+        } catch (accountError) {
+          console.error('La ficha fue creada, pero Authentication no se sincronizó:', accountError);
+          authInviteWarning = ' La cuenta de Authentication requiere revisión: ' + String(accountError?.message || accountError).slice(0,180) + '.';
+        }
+      }
       const products = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row')).map(row => {
         const val = key => row.querySelector(`[data-field="${key}"]`)?.value?.trim() || '';
         const selectedId = val('producto_id');
@@ -1082,7 +1108,7 @@
         mailWarning = ` El pedido quedó registrado, pero el correo no se confirmó: ${reason}. No vuelvas a registrar el pedido.`;
       }
       closeAdminWebModal(); await loadWebOrders(); await loadWebClients();
-      alert(mailWarning ? 'Pedido guardado.' + mailWarning : 'Pedido registrado y correo de confirmación enviado correctamente.');
+      alert((mailWarning ? 'Pedido guardado.' + mailWarning : 'Pedido registrado y correo de confirmación enviado correctamente.') + authInviteWarning);
     } catch (error) {
       console.error('Error creando pedido web:',error);
       alert(error?.message || 'No fue posible guardar el pedido.');

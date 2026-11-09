@@ -856,60 +856,109 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         }
 
         // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
+        let productsDataFetchSequence = 0;
         async function fetchProductsData(options = {}) {
+            const fetchSequence = ++productsDataFetchSequence;
             const preserveView = options?.preserveView === true;
             const savedWindowScroll = preserveView ? window.scrollY : 0;
             const savedCatalogScroll = preserveView ? (document.getElementById('tab-section-catalogo')?.scrollTop || 0) : 0;
             const status = document.getElementById('products-sync-status');
+            const pageSize = 30;
             let loadError = null;
-
+            let offset = 0;
+            let firstPage = true;
+            let usedCreatedAtOrder = true;
+            allProducts = [];
+            filteredProducts = [];
             try {
                 if (!supabaseClient) throw new Error('No hay una conexión activa con Supabase.');
-                let queryResult = await supabaseClient
-                    .from('productos')
-                    .select('*')
-                    .order('created_at', { ascending: true });
-                if (queryResult.error) {
-                    // Compatibilidad si created_at no está disponible: segunda consulta, igualmente a Supabase.
-                    queryResult = await supabaseClient.from('productos').select('*');
+                try { localStorage.removeItem('cupissa_cache_products'); } catch (_) {}
+
+                while (true) {
+                    let query = supabaseClient.from('productos').select('*');
+                    if (usedCreatedAtOrder) query = query.order('created_at', { ascending: true });
+                    let queryResult = await query.range(offset, offset + pageSize - 1);
+
+                    if (firstPage && queryResult.error) {
+                        // Respaldo para proyectos antiguos sin created_at: continúa por lotes,
+                        // y al final se ordena en memoria cuando el campo exista en los registros.
+                        usedCreatedAtOrder = false;
+                        queryResult = await supabaseClient.from('productos')
+                            .select('*')
+                            .range(offset, offset + pageSize - 1);
+                    }
                     if (queryResult.error) throw queryResult.error;
+                    if (fetchSequence !== productsDataFetchSequence) return { products: allProducts, error: null, stale: true };
+
+                    const pageRows = Array.isArray(queryResult.data) ? queryResult.data : [];
+                    if (!pageRows.length) break;
+                    const existingIds = new Set(allProducts.map(item => String(item.id)));
+                    pageRows.forEach(product => {
+                        const id = String(product?.id ?? '');
+                        if (id && !existingIds.has(id)) allProducts.push(product);
+                    });
+
+                    if (usedCreatedAtOrder) {
+                        // El orden se mantiene idéntico al de Supabase entre páginas.
+                    } else {
+                        allProducts.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+                    }
+
+                    filteredProducts = [...allProducts];
+                    if (preserveView && typeof window.filterAdminProductsTable === 'function') {
+                        window.filterAdminProductsTable({ preserveView: true, revealCount: Number(options?.revealCount || 0) });
+                    } else {
+                        currentProductsPage = 1;
+                        renderProductsTable();
+                    }
+
+                    firstPage = false;
+                    offset += pageRows.length;
+                    if (pageRows.length < pageSize) break;
                 }
 
-                // Supabase es la única fuente de verdad: nunca mezclar caché o borradores locales.
-                allProducts = Array.isArray(queryResult.data) ? queryResult.data : [];
-                try { localStorage.removeItem('cupissa_cache_products'); } catch (_) {}
+                if (fetchSequence !== productsDataFetchSequence) return { products: allProducts, error: null, stale: true };
                 if (status) status.classList.add('hidden');
             } catch (error) {
                 loadError = error;
-                console.error('Error al obtener productos desde Supabase:', error);
-                // Ante un fallo de red/permisos no mostrar inventario antiguo ni registros locales.
-                allProducts = [];
-                try { localStorage.removeItem('cupissa_cache_products'); } catch (_) {}
-                if (status) {
-                    status.textContent = `No se pudieron consultar los productos en Supabase: ${error?.message || 'Error desconocido'}. El catálogo no mostrará datos locales ni desactualizados.`;
+                console.error('Error al obtener productos desde Supabase por lotes:', error);
+                if (!allProducts.length) {
+                    filteredProducts = [];
+                    try { localStorage.removeItem('cupissa_cache_products'); } catch (_) {}
+                    if (status) {
+                        status.textContent = `No se pudieron consultar los productos en Supabase: ${error?.message || 'Error desconocido'}. El catálogo no mostrará datos locales ni desactualizados.`;
+                        status.classList.remove('hidden');
+                    }
+                } else if (status) {
+                    status.textContent = `Se cargaron ${allProducts.length} productos. No se pudo completar el resto de la consulta: ${error?.message || 'Error desconocido'}.`;
                     status.classList.remove('hidden');
                 }
             }
 
-            filteredProducts = [...allProducts];
-            if (preserveView && typeof window.filterAdminProductsTable === 'function') {
-                window.filterAdminProductsTable({ preserveView: true, revealCount: Number(options?.revealCount || 0) });
-            } else {
-                currentProductsPage = 1;
-                renderProductsTable();
-            }
-            renderSugerenciasCampos();
-            await loadFeaturedSeasonAdmin();
+            if (fetchSequence === productsDataFetchSequence) {
+                filteredProducts = [...allProducts];
+                if (!allProducts.length) {
+                    if (preserveView && typeof window.filterAdminProductsTable === 'function') {
+                        window.filterAdminProductsTable({ preserveView: true });
+                    } else {
+                        currentProductsPage = 1;
+                        renderProductsTable();
+                    }
+                }
+                renderSugerenciasCampos();
+                await loadFeaturedSeasonAdmin();
 
-            if (preserveView) {
-                requestAnimationFrame(() => {
-                    window.scrollTo({ top: savedWindowScroll, behavior: 'auto' });
-                    const catalog = document.getElementById('tab-section-catalogo');
-                    if (catalog) catalog.scrollTop = savedCatalogScroll;
-                });
+                if (preserveView) {
+                    requestAnimationFrame(() => {
+                        window.scrollTo({ top: savedWindowScroll, behavior: 'auto' });
+                        const catalog = document.getElementById('tab-section-catalogo');
+                        if (catalog) catalog.scrollTop = savedCatalogScroll;
+                    });
+                }
             }
             return { products: allProducts, error: loadError };
         }
+
         // Exponer la recarga para sincronizar el catálogo al abrir la pestaña y al recibir cambios externos.
         window.fetchProductsData = fetchProductsData;
 
@@ -928,21 +977,9 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             status.textContent = 'Consultando los valores existentes de productos.temporadas...';
 
             try {
-                const rows = [];
-                const pageSize = 1000;
-                let from = 0;
-                while (true) {
-                    const { data, error } = await supabaseClient
-                        .from('productos')
-                        .select('temporadas,temporada')
-                        .order('temporada', { ascending: true })
-                        .range(from, from + pageSize - 1);
-                    if (error) throw error;
-                    rows.push(...(data || []));
-                    if (!data || data.length < pageSize) break;
-                    from += pageSize;
-                }
-
+                // fetchProductsData ya trae productos en páginas de 30 ordenadas;
+                // reutilizar esos mismos datos evita una segunda descarga masiva.
+                const rows = Array.isArray(allProducts) ? allProducts : [];
                 const seasonValues = [];
                 rows.forEach(row => {
                     const values = normalizeProductMultiValues(row.temporadas, row.temporada);

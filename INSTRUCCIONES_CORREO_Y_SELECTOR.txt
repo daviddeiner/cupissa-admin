@@ -1,8 +1,0 @@
-CUPISSA - ADMINISTRADOR CON MINIATURAS Y EDGE FUNCTION
-
-1. Sube el contenido de la carpeta cupissa-admin a tu repositorio del administrador (index.html, assets, etc.).
-2. Para la Edge Function, abre cupissa-admin/supabase/functions/cupissa-emails/index.ts; copia el contenido completo y reemplaza el código de Supabase > Edge Functions > cupissa-emails > Code. Pulsa Deploy updates.
-3. No subas los archivos de supabase/functions a la raíz web pública como sustitutos de la función: se despliegan desde Supabase.
-4. El buscador de productos del formulario Agendar pedido muestra miniatura, nombre y precio; las variantes, importes y guardado permanecen conectados al selector interno.
-5. Comprueba que el secreto CUPISSA_ADMIN_EMAIL corresponde al usuario autenticado en el administrador. Esta compilación no modifica Secrets.
-6. Prueba el correo en Supabase. La inclusión del código no prueba el envío real.

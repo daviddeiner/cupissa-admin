@@ -1,67 +1,98 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-// CUPISSA: alta segura en Supabase Auth a partir de un cliente_web existente.
-// La clave service_role NUNCA debe colocarse en los archivos JS del navegador.
-const cors = {
+const env = (name: string) => Deno.env.get(name) ?? '';
+const headers = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization,apikey,x-client-info,content-type',
-  'Access-Control-Allow-Methods': 'POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json; charset=utf-8',
 };
-const json = (body: Record<string,unknown>, status = 200) =>
-  Response.json(body, { status, headers: cors });
-const env = (k: string) => Deno.env.get(k) || '';
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const reply = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers });
+const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
+const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (req.method !== 'POST') return json({ error:'Método no permitido' }, 405);
+type Supa = ReturnType<typeof createClient>;
+
+async function findByEmail(db: Supa, email: string) {
+  const perPage = 200;
+  for (let page = 1; page <= 500; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage });
+    if (error) throw new Error(`AUTH_LOOKUP_FAILED: ${error.message}`);
+    const found = data.users.find(user => normalize(user.email) === email);
+    if (found) return found;
+    if (data.users.length < perPage) return null;
+  }
+  throw new Error('AUTH_LOOKUP_LIMIT: No se pudo completar la búsqueda.');
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+  if (req.method !== 'POST') return reply({ ok: false, error: 'METHOD_NOT_ALLOWED' }, 405);
+
   try {
-    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i,'').trim();
-    if (!token) return json({ error:'Falta la sesión del administrador.' }, 401);
-    const { data: identity, error: authError } = await admin.auth.getUser(token);
-    if (authError || !identity.user) return json({ error:'Sesión inválida.' }, 401);
-    const allowed = env('CUPISSA_ADMIN_EMAIL').trim().toLowerCase();
-    if (!allowed || identity.user.email?.trim().toLowerCase() !== allowed)
-      return json({ error:'No autorizado para registrar usuarios.' }, 403);
-
-    const body = await req.json().catch(() => ({}));
-    if (body?.action !== 'sync_customer_auth') return json({ error:'Acción no permitida.' }, 400);
-    const id = String(body?.cliente_web_id || '').trim();
-    if (!id || id.length > 100) return json({ error:'Falta el ID del cliente web.' }, 400);
-    // Leer correo exclusivamente de la base de datos; no confiar en emails enviados por el navegador.
-    const { data: customer, error: dbError } = await admin.from('clientes_web')
-      .select('id,nombres,apellidos,correo').eq('id', id).maybeSingle();
-    if (dbError) throw dbError;
-    if (!customer) return json({ error:'Cliente no encontrado en clientes_web.' }, 404);
-    const email = String(customer.correo || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return json({ error:'El correo de clientes_web no tiene formato válido.' }, 422);
-    const fullName = [customer.nombres,customer.apellidos].filter(Boolean).join(' ').trim();
-
-    // Solo se genera una invitación, nunca una contraseña conocida por el administrador.
-    const { data: invitation, error: invitationError } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { nombre:fullName, cliente_web_id:String(customer.id) },
-      redirectTo: 'https://cupissa.com/perfil/',
-    });
-    if (invitationError) {
-      // Si ya existe, lo verificamos con Auth antes de considerarlo sincronizado.
-      const reason = invitationError.message || 'Error de invitación';
-      if (/already|registered|exists|duplicate/i.test(reason)) {
-        for (let page = 1; page <= 20; page++) {
-          const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-          if (error) throw error;
-          const found = data.users.find(u => u.email?.trim().toLowerCase() === email);
-          if (found) return json({ ok:true, existing:true, auth_user_id:found.id, email });
-          if (data.users.length < 1000) break;
-        }
-      }
-      return json({ error:'No se pudo crear la cuenta o enviar la invitación.', detail:reason }, 502);
+    const url = env('SUPABASE_URL');
+    const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+    const allowedEmail = normalize(env('CUPISSA_ADMIN_EMAIL'));
+    if (!url || !serviceKey || !allowedEmail) {
+      return reply({ ok: false, error: 'MISSING_CONFIG', detail: 'Revisa SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y CUPISSA_ADMIN_EMAIL.' }, 500);
     }
-    return json({ ok:true, existing:false, invited:true, auth_user_id:invitation.user?.id, email });
-  } catch (e) {
-    console.error('[cupissa-clientes-auth]', e);
-    return json({ error:'Error registrando cliente en Authentication.', detail:String(e) }, 500);
+
+    const authorization = req.headers.get('authorization') ?? '';
+    const token = authorization.replace(/^Bearer\s+/i, '').trim();
+    if (!token) return reply({ ok: false, error: 'AUTH_MISSING', detail: 'No se recibió la sesión del administrador.' }, 401);
+
+    const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: verified, error: verificationError } = await db.auth.getUser(token);
+    if (verificationError || !verified?.user) {
+      return reply({ ok: false, error: 'AUTH_INVALID', detail: verificationError?.message || 'La sesión no es válida.' }, 401);
+    }
+    if (normalize(verified.user.email) !== allowedEmail) {
+      return reply({ ok: false, error: 'ADMIN_NOT_ALLOWED', detail: 'El usuario autenticado no coincide con CUPISSA_ADMIN_EMAIL.' }, 403);
+    }
+
+    let body: Record<string, unknown>;
+    try { body = await req.json(); }
+    catch { return reply({ ok: false, error: 'INVALID_JSON' }, 400); }
+    if (body.action !== 'sync_customer_auth') return reply({ ok: false, error: 'INVALID_ACTION' }, 400);
+
+    const clienteId = String(body.cliente_web_id ?? '').trim();
+    if (!clienteId || clienteId.length > 100) return reply({ ok: false, error: 'INVALID_CUSTOMER_ID' }, 400);
+
+    const { data: customer, error: customerError } = await db.from('clientes_web')
+      .select('id,nombres,apellidos,correo,telefono')
+      .eq('id', clienteId).maybeSingle();
+    if (customerError) return reply({ ok: false, error: 'CUSTOMER_LOOKUP_FAILED', detail: customerError.message }, 500);
+    if (!customer) return reply({ ok: false, error: 'CUSTOMER_NOT_FOUND' }, 404);
+
+    const email = normalize(customer.correo);
+    if (!validEmail(email)) return reply({ ok: false, error: 'INVALID_EMAIL', detail: 'Revisa clientes_web.correo.' }, 422);
+
+    let existing = await findByEmail(db, email);
+    if (existing) return reply({ ok: true, created: false, existing: true, auth_user_id: existing.id, cliente_web_id: customer.id, email });
+
+    const { data: created, error: createError } = await db.auth.admin.createUser({
+      email,
+      email_confirm: false,
+      user_metadata: {
+        tipo: 'cliente',
+        origen: 'cupissa_admin',
+        cliente_web_id: String(customer.id),
+        nombre: [customer.nombres, customer.apellidos].filter(Boolean).join(' ').trim(),
+        telefono: String(customer.telefono ?? ''),
+      },
+    });
+    if (createError || !created?.user) {
+      // Alta concurrente: consultar nuevamente para evitar duplicados.
+      existing = await findByEmail(db, email);
+      if (existing) return reply({ ok: true, created: false, existing: true, auth_user_id: existing.id, cliente_web_id: customer.id, email });
+      return reply({ ok: false, error: 'AUTH_CREATE_FAILED', detail: createError?.message || 'No se devolvió un usuario.' }, 500);
+    }
+
+    return reply({ ok: true, created: true, existing: false, auth_user_id: created.user.id, cliente_web_id: customer.id, email });
+  } catch (error) {
+    console.error('[cupissa-clientes-auth]', error);
+    return reply({ ok: false, error: 'INTERNAL_ERROR', detail: error instanceof Error ? error.message : String(error) }, 500);
   }
 });

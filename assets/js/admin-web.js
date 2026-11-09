@@ -1001,27 +1001,41 @@
         throw new Error('Este cliente no tiene un correo válido. Actualiza su ficha antes de agendar para poder enviar la confirmación.');
       }
 
-      // Completar la creación del cliente en Supabase Authentication.
-      // Si la invitación falla, conservar la ficha del cliente y no duplicar el pedido.
-      if (newlyCreatedClient) {
-        try {
-          const { data: account, error: accountError } = await db.functions.invoke('cupissa-clientes-auth', {
-            body: { action:'sync_customer_auth', cliente_web_id:client.id }
-          });
-          if (accountError || account?.ok !== true) {
-            let detail = account?.detail || account?.error || accountError?.message || 'Error desconocido';
-            if (accountError?.context?.clone) {
-              try {
-                const response = await accountError.context.clone().json();
-                detail = response.detail || response.error || detail;
-              } catch (_) {}
-            }
-            throw new Error(detail);
-          }
-        } catch (accountError) {
-          console.error('La ficha fue creada, pero Authentication no se sincronizó:', accountError);
-          authInviteWarning = ' La cuenta de Authentication requiere revisión: ' + String(accountError?.message || accountError).slice(0,180) + '.';
+      // Sincronizar el usuario con Supabase Authentication incluso si
+      // el cliente web fue creado previamente y falló el primer intento.
+      // La cuenta de Auth se crea SIN esperar a que el cliente inicie sesión.
+      try {
+        const { data: sessionData, error: sessionError } = await db.auth.getSession();
+        if (sessionError || !sessionData?.session?.access_token) {
+          throw new Error('No existe una sesión válida del administrador. Cierra sesión e inicia de nuevo.');
         }
+        // Solicitud directa para distinguir errores de red, CORS y respuestas HTTP.
+        const endpoint = `${window.CUPISSA_SUPABASE_URL}/functions/v1/cupissa-emails`;
+        let response;
+        try {
+          response = await fetch(endpoint, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': window.CUPISSA_SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${sessionData.session.access_token}`
+            },
+            body: JSON.stringify({ action:'sync_customer_auth', cliente_web_id:client.id })
+          });
+        } catch (networkError) {
+          throw new Error('No se pudo conectar con cupissa-emails para sincronizar Authentication. ' + String(networkError?.message || networkError));
+        }
+        const responseText = await response.text();
+        let account = null;
+        try { account = JSON.parse(responseText); } catch (_) {}
+        if (!response.ok || account?.ok !== true) {
+          const detail = [account?.error, account?.detail].filter(Boolean).join(': ') || responseText.slice(0,220) || 'Respuesta vacía de la Edge Function';
+          throw new Error(`HTTP ${response.status}: ${detail}`);
+        }
+      } catch (accountError) {
+        console.error('[CUPISSA] La ficha existe pero Authentication no pudo sincronizarse:', accountError);
+        authInviteWarning = ' La cuenta en Authentication quedó pendiente de sincronización; el pedido y el correo están guardados.';
       }
       const products = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row')).map(row => {
         const val = key => row.querySelector(`[data-field="${key}"]`)?.value?.trim() || '';

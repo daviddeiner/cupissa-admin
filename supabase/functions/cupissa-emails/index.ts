@@ -226,13 +226,63 @@ async function authorizeAdmin(req: Request) {
   return { ok: true, code: 'AUTHORIZED', reason: 'Autorizado' };
 }
 
+
+// Alta silenciosa: crea un registro Auth sin contraseña, invitación ni correo.
+// La titularidad del email se verifica después mediante el acceso público real.
+async function syncCustomerAuth(clienteId: string) {
+  if (!clienteId || clienteId.length > 100) {
+    return { ok: false, code: 'INVALID_CUSTOMER_ID', detail: 'Identificador inválido.' };
+  }
+  const { data: customer, error: lookupError } = await db.from('clientes_web')
+    .select('id,nombres,apellidos,correo,telefono').eq('id', clienteId).maybeSingle();
+  if (lookupError) throw new Error('CUSTOMER_LOOKUP: ' + lookupError.message);
+  if (!customer) return { ok:false, code:'CUSTOMER_NOT_FOUND', detail:'No existe en clientes_web.' };
+  const email = String(customer.correo || '').trim().toLowerCase();
+  if (!validEmail(email)) return { ok:false, code:'INVALID_EMAIL', detail:'El correo de clientes_web no es válido.' };
+  const perPage = 200;
+  const lookup = async () => {
+    for (let page = 1; page <= 500; page++) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage });
+      if (error) throw new Error('AUTH_LOOKUP: ' + error.message);
+      const matching = data.users.find(user => String(user.email || '').trim().toLowerCase() === email);
+      if (matching) return matching;
+      if (data.users.length < perPage) return null;
+    }
+    throw new Error('AUTH_LOOKUP_LIMIT');
+  };
+  const existing = await lookup();
+  if (existing) return { ok:true, created:false, existing:true, auth_user_id:existing.id, cliente_web_id:customer.id, email };
+  const { data: created, error: createError } = await db.auth.admin.createUser({
+    email,
+    email_confirm:false,
+    user_metadata: {
+      tipo:'cliente', origen:'cupissa_admin', cliente_web_id:String(customer.id),
+      nombres:String(customer.nombres || ''), apellidos:String(customer.apellidos || ''),
+      telefono:String(customer.telefono || '')
+    }
+  });
+  if (createError || !created?.user) {
+    // Una solicitud simultánea puede haber creado la cuenta.
+    const concurrent = await lookup();
+    if (concurrent) return { ok:true, created:false, existing:true, auth_user_id:concurrent.id, cliente_web_id:customer.id, email };
+    return { ok:false, code:'AUTH_CREATE_FAILED', detail:createError?.message || 'No se devolvió un usuario.' };
+  }
+  return { ok:true, created:true, existing:false, auth_user_id:created.user.id, cliente_web_id:customer.id, email };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return Response.json({ error: 'Método no permitido' }, { status: 405, headers: cors });
   try {
     const body = await req.json();
     let result;
-    if (body.action === 'admin_order_confirmation') {
+    if (body.action === 'sync_customer_auth') {
+      const admin = await authorizeAdmin(req);
+      if (!admin.ok) return Response.json({ ok:false, error:admin.reason, code:admin.code }, { status:403, headers:cors });
+      const clienteId = String(body.cliente_web_id || '').trim();
+      result = await syncCustomerAuth(clienteId);
+      if (!result.ok) return Response.json(result, { status:422, headers:cors });
+    } else if (body.action === 'admin_order_confirmation') {
       const admin = await authorizeAdmin(req);
       if (!admin.ok) return Response.json({ error: admin.reason, code: admin.code }, { status: 403, headers: cors });
       const orderId = String(body.order_id || '').trim();

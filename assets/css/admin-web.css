@@ -21,3 +21,14 @@
 }
 .admin-web-delete { width:32px; height:32px; flex:0 0 32px; display:inline-grid; place-items:center; border-radius:9px; background:#fff1f2; color:#e11d48; font-size:11px; transition:background .15s ease,color .15s ease; }
 .admin-web-delete:hover { background:#e11d48; color:#fff; }
+
+/* Buscador de clientes del agendamiento */
+.admin-web-client-picker { position:relative; }
+.admin-web-client-results { position:relative; margin-top:5px; max-height:240px; overflow-y:auto; border:1px solid #fbcfe8; border-radius:12px; box-shadow:0 8px 20px rgba(80,20,50,.08); background:#fff; z-index:5; }
+.admin-web-client-results[hidden] { display:none !important; }
+.admin-web-client-option { display:flex; width:100%; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-bottom:1px solid #fce7f3; text-align:left; color:#334155; }
+.admin-web-client-option:hover,.admin-web-client-option:focus-visible { background:#fdf2f8; outline:none; }
+.admin-web-client-option strong { font-size:12px; font-weight:800; }
+.admin-web-client-option small { color:#be185d; font-size:10px; white-space:nowrap; }
+.admin-web-client-new { color:#be185d; font-size:12px; font-weight:900; }
+.admin-web-client-empty { padding:9px 12px; color:#64748b; font-size:11px; }

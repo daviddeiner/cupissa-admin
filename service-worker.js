@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v23-creditos-15min';
+const CACHE_NAME = 'cupissa-admin-v24-login-contacto-20261109';
 const APP_SHELL = [
   './',
   './index.html',

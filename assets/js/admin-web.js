@@ -213,14 +213,51 @@
     filterWebOrders();
   }
   window.clearWebOrderFilters = clearWebOrderFilters;
+  // Selector de clientes con búsqueda real, sin desplegable nativo.
   function populateOrderClientSelect(query = '') {
-    const select = $('web-order-client'); if (!select) return;
+    const menu = $('web-order-client-results');
+    if (!menu) return;
     const q = String(query || '').trim().toLocaleLowerCase('es');
+    const digits = q.replace(/\D/g, '');
     const matches = client => !q || [clientName(client), client.nombre, client.telefono, client.correo, client.cedula]
-      .some(value => String(value || '').toLocaleLowerCase('es').includes(q));
-    const webOptions = webClients.filter(matches).map(c => `<option value="web:${esc(c.id)}">${esc(clientName(c))} · ${esc(c.telefono || '')} · WEB</option>`).join('');
-    const creditOptions = creditClients.filter(matches).map(c => `<option value="credit:${esc(c.id)}">${esc(c.nombre || 'Cliente crédito')} · ${esc(c.telefono || '')} · CRÉDITO</option>`).join('');
-    select.innerHTML = '<option value="">Selecciona un cliente</option>' + webOptions + creditOptions + '<option value="__new__">＋ Crear un cliente nuevo</option>';
+      .some(value => String(value || '').toLocaleLowerCase('es').includes(q)) ||
+      (digits.length >= 3 && String(client.telefono || '').replace(/\D/g, '').includes(digits));
+    const hits = [...webClients.filter(matches).map(c => ({ id:`web:${c.id}`, name:clientName(c), phone:c.telefono, type:'WEB' })),
+      ...creditClients.filter(matches).map(c => ({ id:`credit:${c.id}`, name:c.nombre || 'Cliente crédito', phone:c.telefono, type:'CRÉDITO' }))].slice(0, 30);
+    menu.innerHTML = hits.map(c => `<button type="button" class="admin-web-client-option" data-client-value="${esc(c.id)}"><strong>${esc(c.name)}</strong><small>${esc(c.phone || 'Sin teléfono')} · ${c.type}</small></button>`).join('') +
+      `<button type="button" class="admin-web-client-option admin-web-client-new" data-client-value="__new__">＋ Registrar cliente nuevo</button>` +
+      (!hits.length ? '<div class="admin-web-client-empty">No se encontraron clientes. Puedes registrar uno nuevo.</div>' : '');
+    menu.hidden = false;
+    menu.querySelectorAll('[data-client-value]').forEach(button => button.addEventListener('click', () => {
+      selectOrderClient(button.dataset.clientValue);
+    }));
+  }
+  function selectOrderClient(value) {
+    const selection = $('web-order-client');
+    const search = $('web-order-client-search');
+    const menu = $('web-order-client-results');
+    const panel = $('web-new-client-panel');
+    selection.value = value;
+    const isNew = value === '__new__';
+    panel.hidden = !isNew;
+    panel.querySelectorAll('input').forEach(input => { input.disabled = !isNew; });
+    $('web-new-client-nombres').required = isNew;
+    $('web-new-client-phone').required = isNew;
+    $('web-new-client-email').required = isNew;
+    if (isNew) {
+      search.value = '＋ Registrar cliente nuevo';
+      $('web-order-contact').value = $('web-new-client-phone').value || '';
+    } else {
+      const client = value.startsWith('web:')
+        ? webClients.find(c => String(c.id) === value.slice(4))
+        : creditClients.find(c => String(c.id) === value.slice(7));
+      if (client) {
+        search.value = `${clientName(client) === 'Cliente sin nombre' ? client.nombre : clientName(client)} · ${client.telefono || ''}`;
+        $('web-order-contact').value = client.telefono || '';
+        $('web-order-location').value = [client.direccion, client.barrio, client.ciudad].filter(Boolean).join(', ');
+      }
+    }
+    menu.hidden = true;
   }
 
   async function loadDailyCapacityConfig() {
@@ -761,13 +798,13 @@
     const content = `
       <form id="web-order-form" onsubmit="createWebOrder(event)" class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div class="sm:col-span-2"><label class="admin-web-label">Buscar cliente existente o crear uno nuevo *</label><input id="web-order-client-search" type="search" class="admin-web-input mb-2" placeholder="Buscar por nombre, teléfono, correo o cédula"><select id="web-order-client" class="admin-web-input" required><option value="">Cargando clientes...</option></select></div>
+          <div class="sm:col-span-2 admin-web-client-picker"><label class="admin-web-label">Cliente que agenda el pedido *</label><input id="web-order-client-search" type="search" class="admin-web-input" autocomplete="off" placeholder="Escribe el nombre o teléfono del cliente"><input id="web-order-client" type="hidden" value=""><div id="web-order-client-results" class="admin-web-client-results" hidden></div><p class="text-[10px] text-slate-500 mt-1">Busca y selecciona un cliente, o registra uno nuevo.</p></div>
           <div class="sm:col-span-2 admin-new-client-panel" id="web-new-client-panel" hidden>
             <input id="web-new-client-nombres" class="admin-web-input" placeholder="Nombres *" disabled>
             <input id="web-new-client-apellidos" class="admin-web-input" placeholder="Apellidos">
             <input id="web-new-client-cedula" class="admin-web-input" placeholder="Cédula">
             <input id="web-new-client-phone" class="admin-web-input" placeholder="Teléfono *" disabled>
-            <input id="web-new-client-email" class="admin-web-input" type="email" placeholder="Correo electrónico">
+            <input id="web-new-client-email" class="admin-web-input" type="email" placeholder="Correo electrónico *" disabled>
             <input id="web-new-client-address" class="admin-web-input" placeholder="Dirección">
             <input id="web-new-client-neighborhood" class="admin-web-input" placeholder="Barrio">
             <input id="web-new-client-city" class="admin-web-input" placeholder="Ciudad">
@@ -786,25 +823,19 @@
     showAdminWebModal('Registrar nuevo pedido', content);
     populateOrderClientSelect();
     $('web-new-client-panel').hidden = true;
+    $('web-order-client-results').hidden = true;
     $('web-new-client-panel').querySelectorAll('input').forEach(input => { input.disabled = true; input.required = false; });
     addProductRow();
-    $('web-order-client-search').addEventListener('input', event => populateOrderClientSelect(event.target.value));
-    $('web-order-client').addEventListener('change', async () => {
-      const value = $('web-order-client').value;
-      const panel = $('web-new-client-panel');
-      const newClientSelected = value === '__new__';
-      panel.hidden = !newClientSelected;
-      panel.querySelectorAll('input').forEach(input => { input.disabled = !newClientSelected; });
-      $('web-new-client-nombres').required = newClientSelected;
-      $('web-new-client-phone').required = newClientSelected;
-      if (value.startsWith('web:')) {
-        const c = webClients.find(x => String(x.id) === value.slice(4));
-        if (c) { $('web-order-contact').value = c.telefono || ''; $('web-order-location').value = [c.direccion,c.barrio,c.ciudad].filter(Boolean).join(', '); }
-      } else if (value.startsWith('credit:')) {
-        const c = creditClients.find(x => String(x.id) === value.slice(7));
-        if (c) { $('web-order-contact').value = c.telefono || ''; $('web-order-location').value = [c.direccion,c.barrio,c.ciudad].filter(Boolean).join(', '); }
-      } else if (value === '__new__') {
-        $('web-order-contact').value = $('web-new-client-phone').value || '';
+    $('web-order-client-search').addEventListener('input', event => {
+      $('web-order-client').value = '';
+      populateOrderClientSelect(event.target.value);
+    });
+    $('web-order-client-search').addEventListener('focus', event => populateOrderClientSelect(event.target.value));
+    $('web-order-client-search').addEventListener('keydown', event => {
+      if (event.key === 'Escape') $('web-order-client-results').hidden = true;
+      if (event.key === 'Enter' && !$('web-order-client').value) {
+        event.preventDefault();
+        $('web-order-client-results').querySelector('[data-client-value]')?.click();
       }
     });
     $('web-new-client-phone').addEventListener('input', () => { $('web-order-contact').value = $('web-new-client-phone').value; });
@@ -836,6 +867,7 @@
       const customerChoice = $('web-order-client').value;
       let client = null;
       let clientId = null;
+      if (!customerChoice) throw new Error('Busca y selecciona un cliente antes de guardar el pedido.');
       if (customerChoice === '__new__') {
         const payloadClient = {
           nombres:$('web-new-client-nombres').value.trim(),
@@ -847,7 +879,11 @@
           barrio:$('web-new-client-neighborhood').value.trim(),
           ciudad:$('web-new-client-city').value.trim()
         };
-        if (!payloadClient.nombres || !payloadClient.telefono) throw new Error('Completa los nombres y el teléfono del nuevo cliente.');
+        if (!payloadClient.nombres || !payloadClient.telefono || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payloadClient.correo)) throw new Error('Completa nombre, teléfono y un correo válido para el nuevo cliente.');
+        const existingWeb = webClients.find(c =>
+          (c.telefono && c.telefono.replace(/\D/g, '').slice(-10) === payloadClient.telefono.replace(/\D/g, '').slice(-10)) ||
+          (c.correo && c.correo.trim().toLowerCase() === payloadClient.correo.toLowerCase()));
+        if (existingWeb) throw new Error('Este teléfono o correo ya pertenece a un cliente. Búscalo y selecciónalo para evitar duplicados.');
         const tableName = await resolveWebClientsTable();
         const { data, error } = await db.from(tableName).insert([payloadClient]).select('*').single();
         if (error) throw error;
@@ -881,6 +917,9 @@
         }
       }
       if (!client) throw new Error('Selecciona o registra un cliente válido.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(client.correo || '').trim())) {
+        throw new Error('Este cliente no tiene un correo válido. Actualiza su ficha antes de agendar para poder enviar la confirmación.');
+      }
 
       const products = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row')).map(row => {
         const val = key => row.querySelector(`[data-field="${key}"]`)?.value?.trim() || '';
@@ -924,9 +963,24 @@
         productos:products.map((item,index) => ({ ...item, ...(index === 0 && images.length ? { imagenes:images } : {}) })),
         estado:$('web-order-state').value
       };
-      const { error } = await db.from('pedidos_web').insert([payload]);
+      const { data: savedOrder, error } = await db.from('pedidos_web').insert([payload]).select('*').single();
       if (error) throw error;
-      closeAdminWebModal(); await loadWebOrders(); await loadWebClients(); alert('Pedido registrado correctamente.');
+      // Notificación segura a través de la misma Edge Function que usa el sitio público.
+      // Nunca se envía la clave privada del servicio de correo al navegador.
+      let mailWarning = '';
+      try {
+        const { data: emailResult, error: emailError } = await db.functions.invoke('cupissa-emails', {
+          body: { action:'admin_order_confirmation', order_id:savedOrder.id }
+        });
+        if (emailError) throw emailError;
+        if (emailResult?.error) throw new Error(emailResult.error);
+        if (emailResult?.result?.skipped) throw new Error(emailResult.result.reason || 'El envío fue omitido.');
+      } catch (emailError) {
+        console.error('Pedido guardado, pero el correo no fue confirmado:', emailError);
+        mailWarning = ' El pedido quedó registrado, pero NO se pudo confirmar el envío del correo. Revisa la Edge Function cupissa-emails y sus registros.';
+      }
+      closeAdminWebModal(); await loadWebOrders(); await loadWebClients();
+      alert(mailWarning ? 'Pedido guardado.' + mailWarning : 'Pedido registrado y correo de confirmación enviado correctamente.');
     } catch (error) {
       console.error('Error creando pedido web:',error);
       alert(error?.message || 'No fue posible guardar el pedido.');

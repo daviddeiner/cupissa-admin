@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v22-productos-paginados30';
+const CACHE_NAME = 'cupissa-admin-v23-creditos-15min';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,7 +9,7 @@ const APP_SHELL = [
   './assets/js/00-config.js',
   './assets/js/admin-dialogs.js',
   './assets/js/admin-rentals.js',
-  './assets/js/admin-core.js?v=20261109-productos-paginados30-v1',
+  './assets/js/admin-core.js?v=20261109-creditos-15min-admin-v1',
   './assets/js/admin-web.js?v=20261108-notes-profile-v2',
   './assets/js/admin-enhancements.js?v=20261107-library-remove-v1',
   './assets/js/admin-navigation.js?v=20261108-back-home-v1',

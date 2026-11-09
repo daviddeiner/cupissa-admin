@@ -437,6 +437,12 @@
                 </div>
             </div>
 
+            <section class="rounded-2xl border border-pink-200 bg-pink-50/40 p-4" aria-label="Revisión automática del cupo">
+                <h4 class="text-xs font-black uppercase tracking-wide text-pink-800 mb-2">Revisión automática del cupo</h4>
+                <p class="text-xs text-slate-600 mb-2">Al pagar la penúltima cuota del último crédito activo o liquidar la deuda, Supabase evalúa el historial 15 minutos después. Solo se aplica una vez por crédito; pagar la última cuota no repite el ajuste.</p>
+                <p id="admin-credit-review-status" aria-live="polite" class="text-xs font-semibold text-slate-700">Consultando el estado de revisión…</p>
+            </section>
+
             <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                 <h4 class="text-xs font-black uppercase tracking-wide text-amber-800 mb-2"><i class="fa-regular fa-note-sticky mr-1"></i> Notas de pedidos del cliente</h4>
                 <div id="admin-client-web-order-notes" aria-live="polite">
@@ -719,7 +725,7 @@
     <script src="assets/js/00-config.js"></script>
     <script src="assets/js/admin-dialogs.js"></script>
     <script src="assets/js/admin-rentals.js"></script>
-    <script src="assets/js/admin-core.js?v=20261109-productos-paginados30-v1"></script>
+    <script src="assets/js/admin-core.js?v=20261109-creditos-15min-admin-v1"></script>
     <script src="assets/js/admin-web.js?v=20261108-notes-profile-v2"></script>
     <script src="assets/js/admin-enhancements.js?v=20261108-publicacion-portadas-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>

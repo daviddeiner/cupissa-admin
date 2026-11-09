@@ -267,6 +267,10 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 filteredClients = [...allClients];
                 clientsVisibleCount = clientsPageChunk;
                 renderAdminTable();
+                if (!document.getElementById('modal-edit-client')?.classList.contains('hidden')) {
+                    const selectedId = document.getElementById('edit-client-id')?.value;
+                    if (selectedId) refreshAdminCreditReview(selectedId);
+                }
             } catch (err) {
                 console.error('Error al cargar los clientes desde Supabase:', err);
                 allClients = [];
@@ -426,6 +430,46 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             alert('¡Cliente registrado exitosamente!');
         }
 
+        // Estado informativo: el servidor es el único autorizado a calcular y modificar cupos.
+        // No solicita ajustes de cupo y nunca suplanta el job programado de Supabase.
+        let adminCreditReviewRequestId = 0;
+        async function refreshAdminCreditReview(clientId) {
+            const target = document.getElementById('admin-credit-review-status');
+            if (!target || !clientId || !supabaseClient) return;
+            const requestId = ++adminCreditReviewRequestId;
+            target.textContent = 'Consultando el estado de revisión…';
+            try {
+                const { data, error } = await supabaseClient.rpc('cupissa_admin_estado_revision_cupos', {
+                    p_cliente_id: String(clientId)
+                });
+                if (requestId !== adminCreditReviewRequestId ||
+                    String(document.getElementById('edit-client-id')?.value) !== String(clientId) ||
+                    document.getElementById('modal-edit-client')?.classList.contains('hidden')) return;
+                if (error) {
+                    target.textContent = 'No se puede consultar la revisión automática. Verifica que los dos archivos SQL de revisión de cupos estén instalados en Supabase.';
+                    console.warn('Estado de revisión de cupos no disponible:', error);
+                    return;
+                }
+                if (!data?.existe) {
+                    target.textContent = 'Sin evaluación programada para este cliente. Se programará al cumplir las condiciones del último crédito activo.';
+                    return;
+                }
+                const fecha = data.ejecutar_desde ? new Date(data.ejecutar_desde).toLocaleString('es-CO', {timeZone:'America/Bogota', dateStyle:'short', timeStyle:'short'}) : '—';
+                if (!data.procesado_en) {
+                    target.textContent = `Revisión pendiente · ejecución desde ${fecha} (hora Colombia). ${data.detalle || 'El cupo todavía no se ha ajustado.'}`;
+                } else if (data.resultado === 'APLICADO') {
+                    const monto = Number(data.variacion || 0);
+                    const cambio = monto > 0 ? '+' + formatCOP(monto) : monto < 0 ? '−' + formatCOP(Math.abs(monto)) : 'Sin variación';
+                    target.textContent = `Revisión aplicada · ${cambio}. Cupo total y disponible: ${formatCOP(Number(data.cupo_nuevo || 0))}. ${data.detalle || ''}`;
+                } else {
+                    target.textContent = `Revisión: ${data.resultado || 'sin resultado'}. ${data.detalle || ''}`;
+                }
+            } catch (error) {
+                if (requestId === adminCreditReviewRequestId) target.textContent = 'No fue posible consultar el estado de revisión. La gestión normal de pagos sigue disponible.';
+                console.warn('Error consultando revisión de cupos:', error);
+            }
+        }
+
         function openEditModal(clientId) {
             const client = allClients.find(c => c.id === clientId);
             if (!client) return;
@@ -436,6 +480,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('edit-client-cupo').value = client.cupo_disponible || 0;
 
             renderAdminDebtsList(client);
+            refreshAdminCreditReview(client.id);
             const notesPanel = document.getElementById('admin-client-web-order-notes');
             if (notesPanel) {
                 notesPanel.innerHTML = '<p class="text-xs text-slate-400">Consultando notas de pedidos…</p>';
@@ -449,6 +494,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         }
 
         function closeEditModal() {
+            adminCreditReviewRequestId++;
             document.getElementById('modal-edit-client').classList.add('hidden');
         }
 
@@ -687,7 +733,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 } else {
                     closeEditModal();
                 }
-                alert(cuotaId ? 'Cuota pagada y fecha registrada.' : 'Deuda completamente pagada y cuotas actualizadas.');
+                refreshAdminCreditReview(clientId);
+                alert(cuotaId ? 'Cuota pagada y fecha registrada. Si corresponde, la revisión del cupo será después de 15 minutos.' : 'Deuda completamente pagada y cuotas actualizadas. Si corresponde, la revisión del cupo será después de 15 minutos.');
             } catch (error) {
                 console.error('No se pudo confirmar el pago:', error);
                 alert('No se pudo registrar el pago: ' + (error?.message || 'Error desconocido'));

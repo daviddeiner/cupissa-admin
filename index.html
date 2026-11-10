@@ -138,6 +138,7 @@
                         </button>
                         <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes" class="hidden px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-1.5"></i> Clientes web</button>
                         <button onclick="switchTab('alquileres')" id="tab-btn-alquileres" class="px-4 py-2 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-shirt mr-1.5"></i> Alquileres</button>
+                        <button onclick="switchTab('vistas')" id="tab-btn-vistas" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-eye mr-1.5"></i> Vistas</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
                     </nav>
                 </div>
@@ -158,6 +159,7 @@
         <button onclick="switchTab('catalogo')" id="tab-btn-catalogo-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Catálogo</button>
         <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes-mob" class="hidden flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Clientes web</button>
         <button onclick="switchTab('alquileres')" id="tab-btn-alquileres-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Alquileres</button>
+        <button onclick="switchTab('vistas')" id="tab-btn-vistas-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600"><i class="fa-solid fa-eye mr-1"></i> Vistas</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
     </div>
 
@@ -301,6 +303,27 @@
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><input id="web-client-search" oninput="filterWebClients()" type="search" placeholder="Buscar por nombre, teléfono, correo o ciudad..." class="w-full sm:max-w-md px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500"></div>
             <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left text-xs min-w-[1050px]"><thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">NOMBRES</th><th class="p-4">APELLIDOS</th><th class="p-4">CÉDULA</th><th class="p-4">TELÉFONO</th><th class="p-4">CORREO</th><th class="p-4">DIRECCIÓN</th><th class="p-4">BARRIO</th><th class="p-4">CIUDAD</th><th class="p-4">ACCIONES</th></tr></thead><tbody id="web-clients-tbody" class="divide-y divide-slate-100"><tr><td colspan="9" class="p-6 text-center text-slate-400">Cargando clientes...</td></tr></tbody></table></div></div>
+        </section>
+
+        <!-- CUPISSA | Estadísticas de la tienda pública; no contabiliza el administrador. -->
+        <section id="tab-section-vistas" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-eye fuchsia-text mr-2"></i> Vistas</h2>
+                <p class="text-xs text-slate-500 mt-2">Estadísticas de visitantes del catálogo CUPISSA. Las visitas al administrador no se contabilizan.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <article class="bg-white p-7 rounded-3xl border border-slate-100 shadow-sm" aria-live="polite">
+                    <div class="flex items-center gap-2 text-xs uppercase tracking-wider font-black text-slate-500"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span> Visitantes ahora mismo</div>
+                    <p id="cupissa-visitas-online" class="mt-4 text-5xl font-black text-slate-900">—</p>
+                    <p class="mt-3 text-xs text-slate-500">Navegadores con actividad en los últimos 60 segundos.</p>
+                </article>
+                <article class="bg-white p-7 rounded-3xl border border-slate-100 shadow-sm" aria-live="polite">
+                    <div class="flex items-center gap-2 text-xs uppercase tracking-wider font-black text-slate-500"><i class="fa-solid fa-chart-simple fuchsia-text"></i> Total visitas</div>
+                    <p id="cupissa-visitas-total" class="mt-4 text-5xl font-black fuchsia-text">—</p>
+                    <p class="mt-3 text-xs text-slate-500">Visitantes únicos estimados desde la activación del contador.</p>
+                </article>
+            </div>
+            <p id="cupissa-visitas-status" role="status" class="text-xs text-slate-500">Abre esta sección para actualizar las estadísticas.</p>
         </section>
 
         <!-- SECCIÓN WEB: PEDIDOS DE CLIENTES -->
@@ -729,6 +752,7 @@
     <script src="assets/js/admin-web.js?v=20261109-auth-silencioso"></script>
     <script src="assets/js/admin-enhancements.js?v=20261109-admin-500-fast-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
+    <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
     <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>
 </body>

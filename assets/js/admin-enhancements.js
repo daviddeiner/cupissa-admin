@@ -100,7 +100,9 @@
   // ---------------------------------------------------------------------------
   let productFilter = 'all';
   let productsVisibleCount = 32;
-  const productsPageChunk = 32;
+  const productsPageChunk = 40;
+  let renderedProductCount = 0;
+  let renderedProductIds = [];
   let productsObserver = null;
 
   function installProductFilters() {
@@ -131,6 +133,7 @@
     image.className = 'admin-product-thumb';
     image.alt = product.nombre || 'Producto CUPISSA';
     image.loading = 'lazy';
+    image.decoding = 'async';
     if (imageUrl) image.src = imageUrl;
     else image.src = 'favicon.png';
 
@@ -173,27 +176,44 @@
     return row;
   }
 
-  function renderProductsInfinite() {
+  function renderProductsInfinite(forceReset = false) {
     const list = $('products-list');
     if (!list) return;
     const total = Array.isArray(filteredProducts) ? filteredProducts.length : 0;
-    const visible = filteredProducts.slice(0, productsVisibleCount);
-    list.innerHTML = '';
-    if (!visible.length) {
+    const countToShow = Math.min(total, productsVisibleCount);
+    // Se añaden solo las tarjetas nuevas. No recrear las anteriores en cada scroll.
+    // Comparar identidades evita reutilizar tarjetas de un filtro o una recarga.
+    const canAppend = !forceReset && renderedProductCount <= countToShow &&
+      list.children.length === renderedProductCount &&
+      renderedProductIds.length === renderedProductCount &&
+      renderedProductIds.every((id, i) => String(filteredProducts[i]?.id) === id);
+    if (!canAppend) {
+      list.replaceChildren();
+      renderedProductCount = 0;
+      renderedProductIds = [];
+    }
+    if (!countToShow) {
       const empty = document.createElement('div');
       empty.className = 'p-8 text-center text-slate-400 text-xs';
       empty.textContent = 'No hay productos que coincidan con la búsqueda.';
-      list.appendChild(empty);
-    } else {
-      visible.forEach(product => list.appendChild(createProductRow(product)));
+      list.replaceChildren(empty);
+    } else if (renderedProductCount < countToShow) {
+      const fragment = document.createDocumentFragment();
+      for (let i = renderedProductCount; i < countToShow; i++) {
+        const product = filteredProducts[i];
+        fragment.appendChild(createProductRow(product));
+        renderedProductIds.push(String(product?.id));
+      }
+      list.appendChild(fragment);
+      renderedProductCount = countToShow;
     }
-    const summary = `${Math.min(visible.length, total)} de ${total} producto(s)`;
     const count = $('product-list-count');
-    if (count) count.textContent = summary;
+    if (count) count.textContent = `${countToShow} de ${total} producto(s)`;
     const oldCount = $('val-total-products');
     if (oldCount) oldCount.textContent = String(total);
     const sentinel = $('products-scroll-sentinel');
-    if (sentinel) sentinel.textContent = visible.length < total ? 'Desplázate para ver más productos' : 'Has llegado al final del catálogo';
+    if (sentinel) sentinel.textContent = countToShow < total
+      ? 'Cargando más productos mientras avanzas…' : 'Has llegado al final del catálogo cargado';
   }
 
   window.renderProductsTable = renderProductsInfinite;
@@ -214,7 +234,7 @@
     } else {
       productsVisibleCount = productsPageChunk;
     }
-    renderProductsInfinite();
+    renderProductsInfinite(!options.preserveRender);
   };
 
   window.deleteProduct = window.deleteProduct || (typeof deleteProduct === 'function' ? deleteProduct : undefined);
@@ -294,15 +314,26 @@
 
   function setupInfiniteScroll() {
     const sentinel = $('products-scroll-sentinel');
-    if (!sentinel || !('IntersectionObserver' in window)) return;
+    if (!sentinel) return;
+    const revealAhead = () => {
+      const catalog = $('tab-section-catalogo');
+      if (!catalog || catalog.classList.contains('hidden') || productsVisibleCount >= filteredProducts.length) return;
+      const bounds = sentinel.getBoundingClientRect();
+      // Precarga al aproximarse al final; nunca exige llegar al último píxel.
+      if (bounds.top <= window.innerHeight + 1800) {
+        productsVisibleCount = Math.min(filteredProducts.length, productsVisibleCount + productsPageChunk);
+        renderProductsInfinite();
+      }
+    };
     if (productsObserver) productsObserver.disconnect();
-    productsObserver = new IntersectionObserver(entries => {
-      if (!entries.some(entry => entry.isIntersecting)) return;
-      if (productsVisibleCount >= filteredProducts.length) return;
-      productsVisibleCount = Math.min(filteredProducts.length, productsVisibleCount + productsPageChunk);
-      renderProductsInfinite();
-    }, { rootMargin: '500px 0px' });
-    productsObserver.observe(sentinel);
+    if ('IntersectionObserver' in window) {
+      productsObserver = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) revealAhead();
+      }, { rootMargin: '1800px 0px' });
+      productsObserver.observe(sentinel);
+    } else {
+      window.addEventListener('scroll', revealAhead, { passive: true });
+    }
   }
 
   // ---------------------------------------------------------------------------

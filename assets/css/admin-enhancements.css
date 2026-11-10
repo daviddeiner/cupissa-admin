@@ -152,3 +152,6 @@
 .admin-publish-cover-choice.hidden{display:none!important}
 .admin-image-option .admin-publish-cover-choice{flex-basis:100%;justify-content:flex-start}
 .admin-photo-preview .admin-publish-cover-choice{position:relative;display:flex;width:max-content;max-width:100%}
+
+/* Optimización de tarjetas fuera de pantalla sin alterar su composición. */
+#products-list .admin-product-row { content-visibility: auto; contain-intrinsic-size: auto 86px; }

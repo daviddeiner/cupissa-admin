@@ -1,17 +1,17 @@
-const CACHE_NAME = 'cupissa-admin-v28-shipping-remaining-20261109';
+const CACHE_NAME = 'cupissa-admin-v29-products-500-fast-20261109';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './assets/css/admin-web.css?v=20261109-shipping-remaining-v1',
   './assets/css/admin-modules.css',
-  './assets/css/admin-enhancements.css?v=20261106-4',
+  './assets/css/admin-enhancements.css?v=20261109-admin-500-fast-v1',
   './assets/js/00-config.js',
   './assets/js/admin-dialogs.js',
   './assets/js/admin-rentals.js',
-  './assets/js/admin-core.js?v=20261109-creditos-15min-admin-v1',
+  './assets/js/admin-core.js?v=20261109-admin-500-fast-v1',
   './assets/js/admin-web.js?v=20261109-shipping-remaining-v1',
-  './assets/js/admin-enhancements.js?v=20261107-library-remove-v1',
+  './assets/js/admin-enhancements.js?v=20261109-admin-500-fast-v1',
   './assets/js/admin-navigation.js?v=20261108-back-home-v1',
   './assets/js/admin-products.js',
   './logo.png',

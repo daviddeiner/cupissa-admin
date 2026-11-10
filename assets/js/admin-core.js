@@ -910,7 +910,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             const savedWindowScroll = preserveView ? window.scrollY : 0;
             const savedCatalogScroll = preserveView ? (document.getElementById('tab-section-catalogo')?.scrollTop || 0) : 0;
             const status = document.getElementById('products-sync-status');
-            const pageSize = 30;
+            const pageSize = 500;
+            const loadedIds = new Set();
             let loadError = null;
             let offset = 0;
             let firstPage = true;
@@ -939,22 +940,28 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
 
                     const pageRows = Array.isArray(queryResult.data) ? queryResult.data : [];
                     if (!pageRows.length) break;
-                    const existingIds = new Set(allProducts.map(item => String(item.id)));
                     pageRows.forEach(product => {
                         const id = String(product?.id ?? '');
-                        if (id && !existingIds.has(id)) allProducts.push(product);
+                        if (id && !loadedIds.has(id)) {
+                            loadedIds.add(id);
+                            allProducts.push(product);
+                        }
                     });
 
-                    if (usedCreatedAtOrder) {
-                        // El orden se mantiene idéntico al de Supabase entre páginas.
-                    } else {
+                    // La primera tanda aparece enseguida; las siguientes se agregan
+                    // al catálogo sin reconstruir las tarjetas que el usuario ya ve.
+                    // Conservar los filtros activos cuando llega otra página de Supabase.
+                    if (!usedCreatedAtOrder) {
                         allProducts.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
                     }
-
-                    filteredProducts = [...allProducts];
-                    if (preserveView && typeof window.filterAdminProductsTable === 'function') {
-                        window.filterAdminProductsTable({ preserveView: true, revealCount: Number(options?.revealCount || 0) });
+                    if (typeof window.filterAdminProductsTable === 'function') {
+                        window.filterAdminProductsTable({
+                            preserveView: preserveView || !firstPage,
+                            revealCount: firstPage ? Number(options?.revealCount || 0) : 0,
+                            preserveRender: !firstPage && usedCreatedAtOrder
+                        });
                     } else {
+                        filteredProducts = [...allProducts];
                         currentProductsPage = 1;
                         renderProductsTable();
                     }
@@ -983,7 +990,6 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             }
 
             if (fetchSequence === productsDataFetchSequence) {
-                filteredProducts = [...allProducts];
                 if (!allProducts.length) {
                     if (preserveView && typeof window.filterAdminProductsTable === 'function') {
                         window.filterAdminProductsTable({ preserveView: true });

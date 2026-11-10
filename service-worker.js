@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cupissa-admin-v29-products-500-fast-20261109';
+const CACHE_NAME = 'cupissa-admin-v30-toast-upload-fast-20261109';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,9 +7,9 @@ const APP_SHELL = [
   './assets/css/admin-modules.css',
   './assets/css/admin-enhancements.css?v=20261109-admin-500-fast-v1',
   './assets/js/00-config.js',
-  './assets/js/admin-dialogs.js',
+  './assets/js/admin-dialogs.js?v=20261109-toasts-v2',
   './assets/js/admin-rentals.js',
-  './assets/js/admin-core.js?v=20261109-admin-500-fast-v1',
+  './assets/js/admin-core.js?v=20261109-toasts-upload-v2',
   './assets/js/admin-web.js?v=20261109-shipping-remaining-v1',
   './assets/js/admin-enhancements.js?v=20261109-admin-500-fast-v1',
   './assets/js/admin-navigation.js?v=20261108-back-home-v1',

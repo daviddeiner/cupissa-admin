@@ -1764,45 +1764,52 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     saveCurrentTallasTemplate();
                 }
 
-                const uploadedPhotos = [];
-                for (const fotoUrl of tempBase64Photos) {
-                    const finalUrl = await uploadBase64ToStorage(fotoUrl);
-                    uploadedPhotos.push(finalUrl);
-                }
-
-                const uploadedOriginals = [];
-                for (const origUrl of tempOriginalPhotos) {
-                    const finalUrl = await uploadBase64ToStorage(origUrl);
-                    uploadedOriginals.push(finalUrl);
-                }
-
-                const uploadedAccessories = [];
-                for (const accessory of tempAccesorios) {
-                    let accessoryPhoto = accessory.foto || accessory.imagen || '';
-                    if (accessoryPhoto.startsWith('data:')) {
-                        accessoryPhoto = await uploadBase64ToStorage(accessoryPhoto);
-                    }
-                    uploadedAccessories.push({
-                        nombre: String(accessory.nombre || '').trim(),
-                        incremento: Math.max(0, Number(accessory.incremento || accessory.adicional || 0)),
-                        foto: accessoryPhoto
+                // Subidas concurrentes con límite: acelera varias fotografías sin saturar conexiones lentas.
+                // Una misma imagen se sube una sola vez, incluso si se usa como portada y original.
+                const uploadMemo = new Map();
+                const uploadJobs = [];
+                let uploadRunning = 0;
+                function uploadPhotoFast(source) {
+                    if (!source || !source.startsWith('data:')) return Promise.resolve(source);
+                    if (uploadMemo.has(source)) return uploadMemo.get(source);
+                    const job = new Promise(resolve => {
+                        uploadJobs.push({source, resolve});
+                        const pump = () => {
+                            while (uploadRunning < 3 && uploadJobs.length) {
+                                const current = uploadJobs.shift();
+                                uploadRunning++;
+                                Promise.resolve(uploadBase64ToStorage(current.source))
+                                    .then(current.resolve)
+                                    .catch(() => current.resolve(current.source))
+                                    .finally(() => { uploadRunning--; pump(); });
+                            }
+                        };
+                        pump();
                     });
+                    uploadMemo.set(source, job);
+                    return job;
                 }
-
-                const uploadedColors = [];
-                for (const color of tempColores) {
+                const photosPromise = Promise.all(tempBase64Photos.map(uploadPhotoFast));
+                const originalsPromise = Promise.all(tempOriginalPhotos.map(uploadPhotoFast));
+                const accessoriesPromise = Promise.all(tempAccesorios.map(async accessory => ({
+                    nombre: String(accessory.nombre || '').trim(),
+                    incremento: Math.max(0, Number(accessory.incremento || accessory.adicional || 0)),
+                    foto: await uploadPhotoFast(accessory.foto || accessory.imagen || '')
+                })));
+                const colorsPromise = Promise.all(tempColores.map(async color => {
                     const normalizedColor = typeof color === 'string' ? { nombre: color, incremento: 0 } : { ...color };
-                    let colorPhoto = normalizedColor.foto || normalizedColor.imagen || normalizedColor.imagen_url || '';
-                    let colorPhotoOriginal = normalizedColor.foto_original || normalizedColor.original || colorPhoto;
-                    if (colorPhoto.startsWith('data:')) colorPhoto = await uploadBase64ToStorage(colorPhoto);
-                    if (colorPhotoOriginal.startsWith('data:')) colorPhotoOriginal = await uploadBase64ToStorage(colorPhotoOriginal);
-                    uploadedColors.push({
+                    const rawPhoto = normalizedColor.foto || normalizedColor.imagen || normalizedColor.imagen_url || '';
+                    const rawOriginal = normalizedColor.foto_original || normalizedColor.original || rawPhoto;
+                    const [photo, original] = await Promise.all([uploadPhotoFast(rawPhoto), uploadPhotoFast(rawOriginal)]);
+                    return {
                         nombre: String(normalizedColor.nombre || '').trim(),
                         incremento: Math.max(0, Number(normalizedColor.incremento || normalizedColor.adicional || 0)),
-                        foto: colorPhoto,
-                        foto_original: colorPhotoOriginal || colorPhoto
-                    });
-                }
+                        foto: photo,
+                        foto_original: original || photo
+                    };
+                }));
+                const [uploadedPhotos, uploadedOriginals, uploadedAccessories, uploadedColors] =
+                    await Promise.all([photosPromise, originalsPromise, accessoriesPromise, colorsPromise]);
 
                 // Las opciones cargadas pueden reutilizarse al crear otros productos.
                 uploadedAccessories.forEach((item, index) => { if (!tempAccesorios[index]?.__cupissaProductOnly) window.cupissaSaveAccessoryTemplate?.(item); });
@@ -1910,8 +1917,15 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 }
 
                 closeProductModal();
-                await fetchProductsData({ preserveView: true, revealCount: savedProductCount });
-                alert(editId ? '¡Producto actualizado exitosamente!' : '¡Producto(s) creado(s) exitosamente!');
+                window.cupissaToast?.(editId ? 'Producto actualizado correctamente.' :
+                    (savedProductCount > 1 ? `${savedProductCount} productos publicados correctamente.` : 'Producto publicado correctamente.'), 'success');
+                // El guardado ya fue confirmado por Supabase. La actualización del listado
+                // sigue de forma independiente para no retrasar el mensaje ni bloquear el formulario.
+                void fetchProductsData({ preserveView: true, revealCount: savedProductCount })
+                    .catch(error => {
+                        console.warn('Producto guardado, pero no pudo actualizarse el listado:', error);
+                        window.cupissaToast?.('Producto guardado. No se pudo actualizar el listado; recarga la sección de productos.', 'warning', 8500);
+                    });
 
             } catch (err) {
                 console.error('Supabase no pudo guardar el producto:', err);

@@ -209,6 +209,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         async function handleAdminLogout() {
             try { if (supabaseClient) await supabaseClient.auth.signOut(); } catch (error) { console.warn('No fue posible cerrar la sesión remota:', error); }
             localStorage.removeItem('cupissa_admin_logged');
+            navigator.serviceWorker?.controller?.postMessage({type:'CUPISSA_ADMIN_LOGOUT'});
             document.getElementById('admin-login-screen').classList.remove('hidden');
         }
 

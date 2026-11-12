@@ -58,6 +58,27 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             }
         };
 
+        // Cargar todos los registros sin el truncamiento predeterminado de PostgREST.
+        // Cada solicitud recupera como máximo 1000 filas; los siguientes lotes se
+        // solicitan inmediatamente, evitando bloquear el hilo principal.
+        window.cupissaAdminFetchAll = async function(table, options = {}) {
+            const size = 1000;
+            const output = [];
+            let offset = 0;
+            while (true) {
+                let query = supabaseClient.from(table).select(options.fields || '*');
+                if (options.order) query = query.order(options.order, { ascending: options.ascending !== false });
+                query = query.range(offset, offset + size - 1);
+                const { data, error } = await query;
+                if (error) throw error;
+                const batch = data || [];
+                output.push(...batch);
+                if (batch.length < size) break;
+                offset += size;
+            }
+            return output;
+        };
+
         let allClients = [];
         let filteredClients = [];
         let clientsVisibleCount = 32;
@@ -234,10 +255,11 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         async function fetchAdminData() {
             subscribeAdminCreditRealtime();
             try {
-                const { data: clientes, error: cliError } = await supabaseClient.from('clientes').select('*');
+                const clientes = await window.cupissaAdminFetchAll('clientes');
+                const cliError = null;
                 if (cliError) throw cliError;
 
-                const creditResult = await supabaseClient.from('creditos').select('*');
+                const creditResult = {data:await window.cupissaAdminFetchAll('creditos'), error:null};
                 const creditLoadWarning = document.getElementById('admin-credit-load-error');
                 let creditRows = creditResult.data || [];
                 if (creditResult.error) {

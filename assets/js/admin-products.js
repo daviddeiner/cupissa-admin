@@ -101,12 +101,53 @@ function handleProductMultiInputKey(event, field) {
 function resetProductMultiSelections() {
     ['mundo', 'categoria', 'subcategoria', 'temporada'].forEach(field => setProductMultiValues(field, []));
 }
+        // Selección múltiple exclusivamente para eliminar productos confirmados.
+        const cupissaSelectedProducts = new Set();
+        window.cupissaToggleProductSelection = function(id, checked) {
+            if (checked) cupissaSelectedProducts.add(String(id));
+            else cupissaSelectedProducts.delete(String(id));
+            const count = document.getElementById('cupissa-selected-count');
+            if (count) count.textContent = `${cupissaSelectedProducts.size} seleccionados`;
+        };
+        window.cupissaSelectVisibleProducts = function(checked) {
+            document.querySelectorAll('[data-cupissa-product-select]').forEach(input => {
+                input.checked = !!checked;
+                window.cupissaToggleProductSelection(input.value, !!checked);
+            });
+        };
+        window.cupissaDeleteSelectedProducts = async function() {
+            const ids = [...cupissaSelectedProducts];
+            if (!ids.length) return alert('Selecciona al menos un producto.');
+            if (!(await cupissaConfirm(`¿Eliminar definitivamente ${ids.length} productos de Supabase? Esta acción no se puede deshacer.`))) return;
+            if (!navigator.onLine) return alert('Se necesita internet para confirmar esta eliminación.');
+            let deleted = 0;
+            for (let i = 0; i < ids.length; i += 100) {
+                const group = ids.slice(i, i + 100);
+                const {data,error} = await supabaseClient.from('productos').delete().in('id', group).select('id');
+                if (error) { alert(`Eliminados ${deleted}. Error: ${error.message}`); await fetchProductsData(); return; }
+                deleted += (data || []).length;
+            }
+            cupissaSelectedProducts.clear();
+            await fetchProductsData();
+            alert(`Supabase confirmó la eliminación de ${deleted} productos.`);
+        };
+        function setupCupissaProductBulkActions() {
+            const table = document.getElementById('products-tbody')?.closest('table');
+            if (!table || table.dataset.bulkReady) return;
+            table.dataset.bulkReady = 'true';
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center gap-3 flex-wrap py-2';
+            wrapper.innerHTML = `<button type="button" onclick="cupissaSelectVisibleProducts(true)" class="px-3 py-2 rounded-xl bg-slate-100 font-bold text-xs">Seleccionar esta página</button><button type="button" onclick="cupissaSelectVisibleProducts(false)" class="px-3 py-2 rounded-xl bg-slate-100 font-bold text-xs">Deseleccionar esta página</button><span id="cupissa-selected-count" class="text-xs text-slate-500">0 seleccionados</span><button type="button" onclick="cupissaDeleteSelectedProducts()" class="px-3 py-2 rounded-xl bg-red-600 text-white font-bold text-xs">Eliminar seleccionados</button>`;
+            table.parentNode.insertBefore(wrapper, table);
+            const first = table.querySelector('thead tr');
+            if (first) first.insertAdjacentHTML('afterbegin', '<th class="p-3" aria-label="Selección múltiple">Seleccionar</th>');
+        }
+
         // ==================== PRODUCTOS SUPABASE Y SINCRONIZACIÓN ====================
         async function fetchProductsData() {
             try {
-                const { data, error } = await supabaseClient.from('productos').select('*').order('created_at', { ascending: true });
-                if (error) throw error;
-                allProducts = Array.isArray(data) ? data : [];
+                const data = await window.cupissaAdminFetchAll('productos', {order:'created_at', ascending:true});
+                allProducts = data;
                 try { localStorage.removeItem('cupissa_cache_products'); } catch (_) {}
             } catch (e) {
                 console.error("Error al obtener productos desde Supabase:", e);
@@ -120,6 +161,7 @@ function resetProductMultiSelections() {
 
         function renderProductsTable() {
             const tbody = document.getElementById('products-tbody');
+            setupCupissaProductBulkActions();
             const totalProdEl = document.getElementById('val-total-products');
             if (totalProdEl) totalProdEl.innerText = allProducts.length;
             tbody.innerHTML = '';
@@ -133,12 +175,13 @@ function resetProductMultiSelections() {
             const productsToShow = filteredProducts.slice(startIdx, endIdx);
 
             if (productsToShow.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">No se encontraron productos con ese nombre.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400">No se encontraron productos con ese nombre.</td></tr>`;
             } else {
                 productsToShow.forEach(p => {
                     const foto = p.fotos && p.fotos.length > 0 ? p.fotos[0] : '';
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
+                        <td class="p-3"><input data-cupissa-product-select type="checkbox" value="${p.id}" ${cupissaSelectedProducts.has(String(p.id)) ? 'checked' : ''} onchange="cupissaToggleProductSelection(this.value, this.checked)" aria-label="Seleccionar producto"></td>
                         <td class="p-3"><img src="${foto}" class="w-10 h-10 object-cover rounded-xl border"></td>
                         <td class="p-3 font-bold">${p.nombre}</td>
                         <td class="p-3 font-bold uppercase fuchsia-text">${productMultiValuesFromRow(p, 'mundo').join(' · ') || '—'}</td>

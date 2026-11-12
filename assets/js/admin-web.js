@@ -64,14 +64,11 @@
   async function loadWebClients() {
     try {
       const tableName = await resolveWebClientsTable();
-      const { data, error } = await db.from(tableName).select('*');
-      if (error) throw error;
+      const data = await window.cupissaAdminFetchAll(tableName, {order:'created_at', ascending:false});
       webClients = (data || []).sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
       filteredWebClients = [...webClients]; webClientVisible = ADMIN_WEB_CHUNK; renderWebClients();
       try {
-        const creditResult = await db.from('clientes').select('*').order('nombre', { ascending:true });
-        if (creditResult.error) throw creditResult.error;
-        creditClients = creditResult.data || [];
+        creditClients = await window.cupissaAdminFetchAll('clientes', {order:'nombre', ascending:true});
       } catch (creditError) {
         console.warn('No fue posible consultar clientes con crédito para el selector de pedidos:', creditError);
         creditClients = [];
@@ -84,8 +81,7 @@
   }
   async function loadWebOrders() {
     try {
-      const { data, error } = await db.from('pedidos_web').select('*').order('created_at', { ascending:false });
-      if (error) throw error;
+      const data = await window.cupissaAdminFetchAll('pedidos_web', {order:'created_at', ascending:false});
       webOrders = (data || []).map(order => { const orderKeys = [order.cliente_web_id, order.cliente_id].filter(v => v != null).map(String); const linked = webClients.find(c => [c.id, c.cliente_id].filter(v => v != null).some(value => orderKeys.includes(String(value)))); return {...order, _client:linked || null}; });
       ensureOrderFilterDefaults();
       filterWebOrders();
@@ -202,6 +198,8 @@
       return !q || [order.numero_pedido,order.codigo,order.tipo_pedido,order.fecha_entrega,order.contacto,order.ubicacion,order.cliente_nombre,order._client?.nombres,order._client?.apellidos,order._client?.telefono]
         .some(value => String(value || '').toLowerCase().includes(q));
     });
+    // Fecha de entrega descendente: pedidos próximos/recientes primero; antiguos abajo.
+    filteredWebOrders.sort((a, b) => String(deliveryDateKey(b) || '').localeCompare(String(deliveryDateKey(a) || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
     renderOrdersDashboard();
     renderWebOrders();
   }
@@ -309,8 +307,9 @@
     const code = order?.numero_pedido || order?.codigo || 'este pedido';
     if (!(await cupissaConfirm(`¿Eliminar definitivamente ${code}? Esta acción no se puede deshacer.`))) return;
     try {
-      const { error } = await db.from('pedidos_web').delete().eq('id', id);
+      const { data, error } = await db.rpc('cupissa_admin_eliminar_pedido_web', {p_pedido_id:String(id)});
       if (error) throw error;
+      if (data !== true) throw new Error('Supabase no confirmó la eliminación del pedido.');
       await loadWebOrders();
       alert('Pedido eliminado correctamente.');
     } catch (error) {
@@ -434,8 +433,7 @@
     if (!container || !creditClient) return;
     container.innerHTML = '<div class="text-xs text-slate-400">Consultando notas de pedidos…</div>';
     try {
-      const { data, error } = await db.from('pedidos_web').select('*').order('created_at', { ascending:false });
-      if (error) throw error;
+      const data = await window.cupissaAdminFetchAll('pedidos_web', {order:'created_at', ascending:false});
       const creditId = String(creditClient.id ?? '');
       const phone = normalizedPhone(creditClient.telefono);
       const linkedWebClients = webClients.filter(client => String(client.cliente_id ?? client.id_cliente ?? '') === creditId ||

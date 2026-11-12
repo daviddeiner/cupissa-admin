@@ -589,10 +589,12 @@
       <label class="block text-[10px] font-black uppercase text-slate-600">Foto principal de este color
         <input id="prod-color-file" type="file" accept="image/*" class="mt-1 w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px]">
       </label>
-      <p class="sm:col-span-2 text-[10px] leading-relaxed text-slate-500">Esta imagen también aparecerá en grande en la galería del producto. Cuando el cliente elija este color, la ficha mostrará automáticamente su foto.</p>
+      <p class="sm:col-span-2 text-[10px] leading-relaxed text-slate-500">Arrastra o pega una imagen aquí (Ctrl+V), o selecciónala arriba. Esta imagen también aparecerá en grande en la galería del producto. Cuando el cliente elija este color, la ficha mostrará automáticamente su foto.</p>
       <div id="prod-color-photo-preview" class="hidden"></div>`;
     const accessoryLabel = $('inp-accesorio-foto')?.closest('label');
-    if (accessoryLabel) { accessoryLabel.id = 'prod-accessory-photo-area'; accessoryLabel.classList.add('admin-image-dropzone','rounded-xl','p-2'); }
+    if (accessoryLabel) { accessoryLabel.id = 'prod-accessory-photo-area'; accessoryLabel.classList.add('admin-image-dropzone','rounded-xl','p-2'); accessoryLabel.title = 'Arrastra o pega una imagen del accesorio (Ctrl+V)'; accessoryLabel.tabIndex = 0; }
+    colorPhotoArea.tabIndex = 0;
+    colorPhotoArea.title = 'Arrastra una imagen o pega con Ctrl+V';
     const colorChildren = Array.from(colors.children);
     const colorInputRow = colorChildren.find(element => element.querySelector?.('#inp-color-nombre'));
     if (colorInputRow) colors.insertBefore(colorPhotoArea, colorInputRow.nextSibling);

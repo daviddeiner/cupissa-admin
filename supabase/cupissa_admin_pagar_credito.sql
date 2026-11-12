@@ -32,7 +32,7 @@ DECLARE
 BEGIN
     -- Solo administradores autorizados.
     IF auth.uid() IS NULL
-       OR NOT public.is_cupissa_admin()
+       OR lower(coalesce(auth.jwt() ->> 'email', '')) <> 'contacto@cupissa.com'
     THEN
         RAISE EXCEPTION 'No tienes autorización para registrar pagos.';
     END IF;

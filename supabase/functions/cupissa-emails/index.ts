@@ -276,7 +276,30 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     let result;
-    if (body.action === 'sync_customer_auth') {
+    if (body.action === 'admin_lookup_customer') {
+      const admin = await authorizeAdmin(req);
+      if (!admin.ok) return Response.json({ ok:false, error:admin.reason, code:admin.code }, {status:403,headers:cors});
+      const email = String(body.email || '').trim().toLowerCase();
+      const phone = String(body.phone || '').replace(/\D/g, '').slice(-10);
+      if (!email && phone.length < 7) return Response.json({ok:true,found:false}, {headers:cors});
+      const {data: webClients, error: webError} = await db.from('clientes_web').select('id,nombres,apellidos,correo,telefono').limit(1000);
+      if (webError) throw webError;
+      const match = (webClients || []).find(c =>
+        (email && String(c.correo || '').trim().toLowerCase() === email) ||
+        (phone.length >= 7 && String(c.telefono || '').replace(/\D/g,'').slice(-10) === phone));
+      if (match) return Response.json({ok:true,found:true,client:match}, {headers:cors});
+      if (email) {
+        // Solo admin, con service_role; nunca exponer listUsers en el navegador.
+        for (let page=1;page<=100;page++) {
+          const {data, error} = await db.auth.admin.listUsers({page,perPage:200});
+          if (error) throw error;
+          if (data.users.some(u => String(u.email || '').trim().toLowerCase() === email))
+            return Response.json({ok:true,found:true,authOnly:true}, {headers:cors});
+          if (data.users.length < 200) break;
+        }
+      }
+      return Response.json({ok:true,found:false}, {headers:cors});
+    } else if (body.action === 'sync_customer_auth') {
       const admin = await authorizeAdmin(req);
       if (!admin.ok) return Response.json({ ok:false, error:admin.reason, code:admin.code }, { status:403, headers:cors });
       const clienteId = String(body.cliente_web_id || '').trim();

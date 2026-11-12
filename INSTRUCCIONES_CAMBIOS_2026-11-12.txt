@@ -1,0 +1,10 @@
+CUPISSA — ACTUALIZACIÓN 12 NOVIEMBRE 2026
+
+1. Reemplaza los archivos públicos con los de CUPISSA CLIENTES y CUPISSA ADMIN respectivamente. No hay que cargar archivos .git.
+2. Supabase > SQL Editor: ejecutar supabase/cupissa_admin_pagar_credito.sql (archivo completo). Corrige validación de sesión para pago de cuotas. Autoriza únicamente la cuenta autenticada contacto@cupissa.com. No ejecuta pagos retroactivos.
+3. Supabase > Edge Functions > cupissa-emails > index.ts: actualizar con supabase/functions/cupissa-emails/index.ts. Conserva las acciones anteriores y añade admin_lookup_customer.
+4. Supabase > Edge Functions > Deploy a new function: nombre exacto cupissa-pedido-entregado. Copia supabase/functions/cupissa-pedido-entregado/index.ts. Debe tener secrets SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CUPISSA_ADMIN_EMAIL, CUPISSA_MAILER_URL, CUPISSA_MAILER_SECRET (configurados para el proyecto). Proteger con JWT verificado; el propio código comprueba el JWT y el correo del administrador.
+5. Buckets de Supabase: mantener existente pedidos-web con permisos de subida y lectura compatibles con el admin. Las fotos manuales se guardan ahí; la URL queda en productos[].imagen_url de pedidos_web, sin columnas nuevas.
+6. No se añadieron columnas ni tablas nuevas. El correo de entrega se dispara solo al CAMBIAR el estado en el administrador a ENTREGADO; el proveedor de correo debe respetar idempotencyKey.
+7. La búsqueda previa de duplicados utiliza la Edge Function cupissa-emails con autorización del administrador y tablas clientes_web y Authentication. Si el correo solamente existe en Authentication, bloquea creación hasta que se vincule a una ficha de clientes_web; por seguridad no asocia fichas por similitud sin verificar.
+8. Validar en un entorno de pruebas con un pedido de prueba, un crédito de prueba y la cuenta administradora. Sin acceso a tu proyecto de Supabase no es posible verificar políticas, secretos ni entrega real de emails.

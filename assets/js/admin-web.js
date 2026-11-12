@@ -654,7 +654,7 @@
     const items = Array.isArray(o.productos) ? o.productos : [];
     const images = Array.isArray(o.imagenes) ? o.imagenes : [...new Set(items.flatMap(p => Array.isArray(p.imagenes) ? p.imagenes : (p.imagen_url ? [p.imagen_url] : [])))];
     const rest = orderBalance(o);
-    const productsHtml = items.map((p,i)=>`<div class="p-3 rounded-xl border border-slate-100 flex gap-3">${p.imagen_url?`<img src="${esc(p.imagen_url)}" class="admin-web-order-image">`:''}<div class="min-w-0 flex-1"><strong class="text-xs text-slate-900">${i+1}. ${esc(p.nombre||p.producto||'Producto')}</strong><p class="text-[11px] text-slate-500 mt-1">Referencia: ${esc(p.referencia||'—')} · Talla: ${esc(p.talla||'—')} · Color: ${esc(p.color||'—')}</p><p class="text-[11px] text-slate-600 mt-1">Cantidad: ${esc(p.cantidad||1)} · Precio: ${cop(p.precio)}</p></div></div>`).join('') || '<p class="text-xs text-slate-400">Sin productos detallados.</p>';
+    const productsHtml = items.map((p,i)=>`<div class="p-3 rounded-xl border border-slate-100 flex gap-3">${(p.imagen_url || p.imagenes?.[0])?`<img src="${esc(p.imagen_url || p.imagenes[0])}" class="admin-web-order-image">`:''}<div class="min-w-0 flex-1"><strong class="text-xs text-slate-900">${i+1}. ${esc(p.nombre||p.producto||'Producto')}</strong><p class="text-[11px] text-slate-500 mt-1">Referencia: ${esc(p.referencia||'—')} · Talla: ${esc(p.talla||'—')} · Color: ${esc(p.color||'—')}</p><p class="text-[11px] text-slate-600 mt-1">Cantidad: ${esc(p.cantidad||1)} · Precio: ${cop(p.precio)}</p></div></div>`).join('') || '<p class="text-xs text-slate-400">Sin productos detallados.</p>';
     const imagesHtml = images.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" class="admin-web-order-image"></a>`).join('');
     const orderType = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
     const orderName = o.numero_pedido || o.codigo || '';
@@ -706,10 +706,26 @@
       <div><label class="admin-web-label">Color</label><input class="admin-web-input" data-field="color" list="${rowUid}-colors" placeholder="Elegir o escribir"></div>
       <div><label class="admin-web-label">Accesorio / variante</label><input class="admin-web-input" data-field="accesorio" list="${rowUid}-accessories" placeholder="Opcional"></div>
       <div><label class="admin-web-label">Incremento manual ($)</label><input class="admin-web-input" data-field="incremento_manual" type="number" min="0" step="1" value="0"></div>
+      <div class="wide"><label class="admin-web-label">Fotografía de este producto</label><input class="admin-web-input" data-field="product_photo" type="file" accept="image/*"><div data-field="product_photo_preview" class="mt-2" hidden></div></div>
       <div class="wide"><label class="admin-web-label">Referencia (opcional)</label><input class="admin-web-input" data-field="referencia" placeholder="Referencia o detalle"></div>
       <div class="wide flex justify-end"><button type="button" class="px-3 py-2 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold" title="Quitar producto" onclick="this.closest('.admin-web-product-row').remove();recalculateWebOrderTotal()"><i class="fa-solid fa-trash mr-1"></i> Quitar</button></div>`;
     container.appendChild(row);
 
+    const photoInput = row.querySelector('[data-field="product_photo"]');
+    const photoPreview = row.querySelector('[data-field="product_photo_preview"]');
+    photoInput.addEventListener('change', () => {
+      if (row._cupissaPreviewUrl) URL.revokeObjectURL(row._cupissaPreviewUrl);
+      const file = photoInput.files?.[0];
+      row._cupissaPreviewUrl = file ? URL.createObjectURL(file) : '';
+      photoPreview.hidden = !file;
+      photoPreview.replaceChildren();
+      if (file) {
+        const img = document.createElement('img');
+        img.src = row._cupissaPreviewUrl; img.alt = 'Vista previa del producto';
+        img.style.cssText = 'width:76px;height:76px;object-fit:cover;border-radius:12px;border:1px solid #eee';
+        photoPreview.appendChild(img);
+      }
+    });
     const productSearch = row.querySelector('[data-field="product_search"]');
     const productSelect = row.querySelector('[data-field="producto_id"]');
     const customName = row.querySelector('[data-field="custom_name"]');
@@ -867,6 +883,47 @@
   }
   window.updateWebOrderBalancePreview = updateWebOrderBalancePreview;
 
+  let webOrderCustomerCheck = {pending:false, blocked:false};
+  async function checkNewOrderCustomer() {
+    const phone = $('web-new-client-phone')?.value?.trim() || '';
+    const email = $('web-new-client-email')?.value?.trim().toLowerCase() || '';
+    const note = $('web-new-client-duplicate-note');
+    if (!note || !phone && !email) { webOrderCustomerCheck = {pending:false,blocked:false}; return; }
+    const local = webClients.find(c =>
+      (phone.replace(/\D/g,'').slice(-10).length >= 7 && normalizedPhone(c.telefono) === phone.replace(/\D/g,'').slice(-10)) ||
+      (email && String(c.correo || '').trim().toLowerCase() === email));
+    webOrderCustomerCheck = {pending:true,blocked:true};
+    note.textContent = 'Verificando datos del cliente…'; note.hidden = false;
+    try {
+      let found = local ? {client:local} : null;
+      if (!found) {
+        const {data,error} = await db.functions.invoke('cupissa-emails', {
+          body:{action:'admin_lookup_customer', email, phone}
+        });
+        if (error) throw error;
+        if (data?.ok !== true) throw new Error(data?.error || 'No se completó la verificación.');
+        found = data.found ? data : null;
+      }
+      // Descartar respuestas de campos que ya cambiaron.
+      if (email !== ($('web-new-client-email')?.value?.trim().toLowerCase() || '') || phone !== ($('web-new-client-phone')?.value?.trim() || '')) return;
+      webOrderCustomerCheck = {pending:false,blocked:!!found};
+      const match = found?.client;
+      if (match) {
+        note.textContent = 'Este correo o teléfono ya pertenece a ' + clientName(match) + '. Se seleccionó su ficha existente.';
+        let existing = webClients.find(c => String(c.id) === String(match.id));
+        if (!existing) { webClients.unshift(match); existing = match; }
+        selectOrderClient('web:' + existing.id);
+      } else if (found?.authOnly) {
+        note.textContent = 'Este correo ya está registrado en Authentication. No se permite duplicarlo: vincula primero la cuenta a clientes_web.';
+      } else {
+        note.textContent = 'No existe un cliente con estos datos. Puedes continuar.';
+      }
+    } catch (error) {
+      webOrderCustomerCheck = {pending:false,blocked:true};
+      note.textContent = 'No se pudo verificar si el cliente ya existe: ' + (error.message || error);
+    }
+  }
+
   window.openNewWebOrder = function() {
     const content = `
       <form id="web-order-form" onsubmit="createWebOrder(event)" class="space-y-4">
@@ -878,6 +935,7 @@
             <input id="web-new-client-cedula" class="admin-web-input" placeholder="Cédula">
             <input id="web-new-client-phone" class="admin-web-input" placeholder="Teléfono *" disabled>
             <input id="web-new-client-email" class="admin-web-input" type="email" placeholder="Correo electrónico *" disabled>
+            <p id="web-new-client-duplicate-note" class="text-xs text-pink-700" hidden aria-live="polite"></p>
             <input id="web-new-client-address" class="admin-web-input" placeholder="Dirección">
             <input id="web-new-client-neighborhood" class="admin-web-input" placeholder="Barrio">
             <input id="web-new-client-city" class="admin-web-input" placeholder="Ciudad">
@@ -914,7 +972,11 @@
         $('web-order-client-results').querySelector('[data-client-value]')?.click();
       }
     });
-    $('web-new-client-phone').addEventListener('input', () => { $('web-order-contact').value = $('web-new-client-phone').value; });
+    let clientCheckTimer;
+    const scheduleClientCheck = () => { clearTimeout(clientCheckTimer); clientCheckTimer = setTimeout(checkNewOrderCustomer, 350); };
+    $('web-new-client-phone').addEventListener('input', () => { $('web-order-contact').value = $('web-new-client-phone').value; scheduleClientCheck(); });
+    $('web-new-client-email').addEventListener('input', scheduleClientCheck);
+    $('web-new-client-email').addEventListener('change', checkNewOrderCustomer);
     $('web-new-client-address').addEventListener('input', () => {
       $('web-order-location').value = [$('web-new-client-address').value,$('web-new-client-neighborhood').value,$('web-new-client-city').value].filter(Boolean).join(', ');
     });
@@ -947,6 +1009,8 @@
       let authInviteWarning = '';
       if (!customerChoice) throw new Error('Busca y selecciona un cliente antes de guardar el pedido.');
       if (customerChoice === '__new__') {
+        await checkNewOrderCustomer();
+        if (webOrderCustomerCheck.pending || webOrderCustomerCheck.blocked) throw new Error('No puedes crear este cliente: ya existe o no se pudo verificar. Selecciona la ficha existente.');
         const payloadClient = {
           nombres:$('web-new-client-nombres').value.trim(),
           apellidos:$('web-new-client-apellidos').value.trim(),
@@ -1037,7 +1101,14 @@
         console.error('[CUPISSA] La ficha existe pero Authentication no pudo sincronizarse:', accountError);
         authInviteWarning = ' La cuenta en Authentication quedó pendiente de sincronización; el pedido y el correo están guardados.';
       }
-      const products = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row')).map(row => {
+      const orderRows = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row'));
+      const productPhotoUrls = await Promise.all(orderRows.map(async row => {
+        const file = row.querySelector('[data-field="product_photo"]')?.files?.[0];
+        if (!file) return '';
+        const uploaded = await uploadOrderImages([file]);
+        return uploaded[0] || '';
+      }));
+      const products = orderRows.map((row, rowIndex) => {
         const val = key => row.querySelector(`[data-field="${key}"]`)?.value?.trim() || '';
         const selectedId = val('producto_id');
         const catalogProduct = selectedId && selectedId !== '__custom__' ? getCatalogProducts().find(p => String(p.id) === selectedId) : null;
@@ -1055,7 +1126,7 @@
           accesorio:accessories,
           incremento_manual:Number(val('incremento_manual') || 0),
           modalidad:$('web-order-type').value,
-          ...(catalogProduct?.fotos?.length ? { imagen_url:catalogProduct.fotos[0] } : {})
+          ...(productPhotoUrls[rowIndex] ? { imagen_url:productPhotoUrls[rowIndex] } : (catalogProduct?.fotos?.length ? { imagen_url:catalogProduct.fotos[0] } : {}))
         };
       }).filter(product => product.nombre);
       if (!products.length) throw new Error('Agrega al menos un producto al pedido.');
@@ -1131,10 +1202,24 @@
 
   window.changeWebOrderStatus = async function(id, status) {
     if (!states.includes(status)) return;
+    const previousStatus = webOrders.find(o=>String(o.id)===String(id))?.estado;
     const { error } = await db.from('pedidos_web').update({ estado:status }).eq('id',id);
     if (error) { console.error(error); alert('No fue posible actualizar el estado del pedido.'); await loadWebOrders(); return; }
     const order = webOrders.find(o=>String(o.id)===String(id)); if(order) order.estado=status;
     filterWebOrders();
+    if (status === 'ENTREGADO' && normalizeOrderStatus(previousStatus) !== 'ENTREGADO') {
+      try {
+        const {data: mail, error: mailError} = await db.functions.invoke('cupissa-pedido-entregado', {
+          body:{order_id:id}
+        });
+        if (mailError) throw mailError;
+        if (mail?.ok === false) throw new Error(mail.detail || mail.error || 'No se confirmó el correo.');
+        if (mail?.skipped) alert('Pedido entregado. No se envió correo: ' + mail.reason);
+      } catch (emailError) {
+        console.error('El pedido sí fue entregado, pero falló el aviso por correo:',emailError);
+        alert('Pedido marcado ENTREGADO correctamente. El correo de entrega no pudo confirmarse: ' + (emailError?.message || emailError));
+      }
+    }
   };
 
 })();

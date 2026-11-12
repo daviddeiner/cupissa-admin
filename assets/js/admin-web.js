@@ -57,9 +57,14 @@
 
   async function loadWebAdminData() {
     if (!adminReady()) return;
-    await loadWebClients();
-    await loadWebOrders();
-    await loadDailyCapacityConfig();
+    await Promise.all([loadWebClients(), loadWebOrders(), loadDailyCapacityConfig()]);
+    // Reconciliar referencias aunque pedidos y clientes hayan terminado en distinto orden.
+    webOrders = webOrders.map(order => {
+      const keys=[order.cliente_web_id,order.cliente_id].filter(v=>v!=null).map(String);
+      const found=webClients.find(client=>[client.id,client.cliente_id].filter(v=>v!=null).some(v=>keys.includes(String(v))));
+      return {...order,_client:found||null};
+    });
+    filterWebOrders();
   }
   async function loadWebClients() {
     try {
@@ -67,12 +72,10 @@
       const data = await window.cupissaAdminFetchAll(tableName, {order:'created_at', ascending:false});
       webClients = (data || []).sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
       filteredWebClients = [...webClients]; webClientVisible = ADMIN_WEB_CHUNK; renderWebClients();
-      try {
-        creditClients = await window.cupissaAdminFetchAll('clientes', {order:'nombre', ascending:true});
-      } catch (creditError) {
-        console.warn('No fue posible consultar clientes con crédito para el selector de pedidos:', creditError);
-        creditClients = [];
-      }
+      // Lista complementaria de crédito se carga aparte: no bloquea pedidos web.
+      window.cupissaAdminFetchAll('clientes', {order:'nombre', ascending:true})
+        .then(rows=>{ creditClients=rows||[]; populateOrderClientSelect(); })
+        .catch(error=>console.warn('No fue posible consultar clientes con crédito:',error));
       populateOrderClientSelect();
     } catch (error) {
       console.error('No fue posible consultar la tabla de clientes web:', error);
@@ -1198,6 +1201,7 @@
     } finally { if (button) { button.disabled = false; button.textContent = 'Guardar pedido'; } }
   };
 
+  window.cupissaLoadWebOrders = loadWebOrders;
   window.changeWebOrderStatus = async function(id, status) {
     if (!states.includes(status)) return;
     const previousStatus = webOrders.find(o=>String(o.id)===String(id))?.estado;

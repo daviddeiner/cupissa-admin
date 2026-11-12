@@ -13,6 +13,8 @@
     <link rel="icon" href="favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="admin-icon-192.png">
     
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -48,11 +50,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
-    <!-- CryptoJS Librería para la comparación estricta/Hash de imágenes -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <link rel="stylesheet" href="assets/css/admin-web.css?v=20261109-shipping-remaining-v1">
-    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261108-portadas-multiples-v1">
+    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261112-imagenes-v4">
+    <link rel="stylesheet" href="assets/css/admin-app-mobile.css?v=20261112-domicilios-2">
     <style>
         .fuchsia-btn { background-color: #db2777; color: white; }
         .fuchsia-btn:hover { background-color: #be185d; }
@@ -138,6 +139,7 @@
                         </button>
                         <button onclick="switchTab('web-clientes')" id="tab-btn-web-clientes" class="hidden px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-1.5"></i> Clientes web</button>
                         <button onclick="switchTab('alquileres')" id="tab-btn-alquileres" class="px-4 py-2 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-shirt mr-1.5"></i> Alquileres</button>
+                        <button onclick="switchTab('domicilios')" id="tab-btn-domicilios" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-motorcycle mr-1"></i> Domicilios</button>
                         <button onclick="switchTab('vistas')" id="tab-btn-vistas" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-eye mr-1.5"></i> Vistas</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
                     </nav>
@@ -162,6 +164,15 @@
         <button onclick="switchTab('vistas')" id="tab-btn-vistas-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600"><i class="fa-solid fa-eye mr-1"></i> Vistas</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
     </div>
+
+    <nav class="cupissa-admin-appnav" aria-label="Navegación móvil de administrador">
+      <button type="button" data-app-tab="clientes" onclick="switchTab('clientes')" class="is-active"><i class="fa-solid fa-users"></i><span>Clientes</span></button>
+      <button type="button" data-app-tab="catalogo" onclick="switchTab('catalogo')"><i class="fa-solid fa-boxes-stacked"></i><span>Catálogo</span></button>
+      <button type="button" data-app-tab="web-pedidos" onclick="switchTab('web-pedidos')"><i class="fa-solid fa-receipt"></i><span>Pedidos</span></button>
+      <button type="button" data-app-tab="domicilios" onclick="switchTab('domicilios')"><i class="fa-solid fa-motorcycle"></i><span>Domicilios</span></button>
+      <button type="button" id="cupissa-admin-more"><i class="fa-solid fa-ellipsis"></i><span>Más</span></button>
+    </nav>
+    <div id="cupissa-admin-more-menu" class="hidden cupissa-admin-more-menu"><button onclick="switchTab('vistas')">Visitas</button><button onclick="switchTab('alquileres')">Alquileres</button><button onclick="switchTab('web-clientes')">Clientes web</button></div>
 
     <!-- MAIN CONTAINER -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -354,6 +365,13 @@
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><input id="web-order-search" oninput="filterWebOrders()" type="search" placeholder="Buscar pedido, cliente o teléfono..." class="w-full sm:max-w-md px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500"></div>
             <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left text-xs min-w-[1450px]"><thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">PEDIDO</th><th class="p-4">PRODUCTOS</th><th class="p-4">VENTA / ALQUILER</th><th class="p-4">FECHA ENTREGA</th><th class="p-4">CLIENTE</th><th class="p-4">CONTACTO</th><th class="p-4">UBICACIÓN</th><th class="p-4">TOTAL</th><th class="p-4">ENVÍO</th><th class="p-4">ANTICIPO</th><th class="p-4">RESTANTE</th><th class="p-4">IMÁGENES</th><th class="p-4">ESTADO</th></tr></thead><tbody id="web-orders-tbody" class="divide-y divide-slate-100"><tr><td colspan="13" class="p-6 text-center text-slate-400">Cargando pedidos...</td></tr></tbody></table></div></div>
+        </section>
+
+        <section id="tab-section-domicilios" class="hidden space-y-5" aria-label="Administrar domicilios">
+            <div class="delivery-section-head"><div><p class="delivery-eyebrow">OPERACIONES · CUPISSA</p><h2><i class="fa-solid fa-motorcycle"></i> Domicilios</h2><p>Asigna los pedidos del departamento de despacho y consulta las entregas.</p></div><div class="flex flex-wrap gap-2"><button type="button" id="domicilios-refresh" class="delivery-admin-secondary"><i class="fa-solid fa-rotate"></i> Actualizar</button><button type="button" class="delivery-admin-primary" onclick="cupissaAbrirCrearDomiciliario()"><i class="fa-solid fa-user-plus"></i> Crear domiciliario</button></div></div>
+            <form id="domiciliario-create-form" class="hidden delivery-create-form" onsubmit="cupissaCrearDomiciliario(event)"><h3>Nuevo domiciliario</h3><div class="delivery-create-grid"><label>Nombres<input name="nombres" required minlength="2" autocomplete="off" placeholder="Nombres"></label><label>Apellidos<input name="apellidos" required minlength="2" autocomplete="off" placeholder="Apellidos"></label><label>Celular<input name="telefono" required type="tel" inputmode="tel" placeholder="3001234567"></label><label>Contraseña asignada<input name="password" required type="password" minlength="10" autocomplete="new-password" placeholder="Mínimo 10 caracteres"></label></div><p class="text-xs text-slate-500">Las credenciales se crean exclusivamente para el portal del domiciliario, sin acceso a CUPISSA ADMIN.</p><button class="delivery-admin-primary" type="submit">Crear cuenta de domiciliario</button></form>
+            <p id="domicilios-status" role="status" class="text-xs text-slate-600">Abre esta sección para consultar los despachos.</p>
+            <div class="delivery-columns"><section class="delivery-content-panel"><h3><i class="fa-solid fa-box-open"></i> Por asignar</h3><div id="domicilios-pendientes" class="delivery-cards"><p class="text-sm text-slate-500">Cargando…</p></div></section><section class="delivery-content-panel"><h3><i class="fa-solid fa-route"></i> En camino</h3><div id="domicilios-en-camino" class="delivery-assigned"><p class="text-sm text-slate-500">Cargando…</p></div></section></div>
         </section>
 
         <div id="admin-web-modal-root"></div>
@@ -748,13 +766,16 @@
     <script src="assets/js/00-config.js"></script>
     <script src="assets/js/admin-dialogs.js?v=20261109-toasts-v2"></script>
     <script src="assets/js/admin-rentals.js"></script>
-    <script src="assets/js/admin-core.js?v=20261109-toasts-upload-v2"></script>
+    <script src="assets/js/admin-core.js?v=20261112-products-speed-2"></script>
     <script src="assets/js/admin-web.js?v=20261112-entrega-1"></script>
-    <script src="assets/js/admin-enhancements.js?v=20261109-admin-500-fast-v1"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261112-products-speed-2"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
-    <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));</script>
+    <script src="assets/js/admin-domicilios.js?v=20261112-create-courier-fix-2"></script>
+
+
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>
-<script defer src="./offline/estado.js?v=20261112-offline-v1"></script>
+    <script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js',{scope:'./'}).catch(()=>{}),{once:true});</script>
+
 </body>
 </html>

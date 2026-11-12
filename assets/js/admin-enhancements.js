@@ -125,9 +125,70 @@
     panel.appendChild(filterBar);
   }
 
+  // Selección múltiple en las TARJETAS visibles (no en la tabla heredada oculta).
+  const bulkSelected = new Set();
+  function updateBulkUi() {
+    const label = $('cupissa-bulk-count');
+    if(label) label.textContent = `${bulkSelected.size} seleccionados`;
+    const button=$('cupissa-bulk-delete'); if(button) button.disabled=!bulkSelected.size;
+    document.querySelectorAll('#products-list .admin-product-row').forEach(row => {
+      row.classList.toggle('is-selected',bulkSelected.has(String(row.dataset.productId)));
+    });
+  }
+  function ensureBulkBar() {
+    if($('cupissa-bulk-toolbar')) return;
+    const list=$('products-list'); if(!list) return;
+    const toolbar=document.createElement('div');toolbar.id='cupissa-bulk-toolbar';toolbar.className='admin-bulk-toolbar';
+    toolbar.innerHTML=`<label class="admin-bulk-toggle"><input type="checkbox" id="cupissa-bulk-page" aria-label="Seleccionar productos mostrados"> Seleccionar visibles</label>
+      <button type="button" class="admin-bulk-clear" id="cupissa-bulk-clear">Limpiar selección</button>
+      <strong id="cupissa-bulk-count" aria-live="polite">0 seleccionados</strong>
+      <button type="button" id="cupissa-bulk-delete" class="admin-bulk-delete" disabled><i class="fa-solid fa-trash"></i> Eliminar seleccionados</button>`;
+    list.before(toolbar);
+    $('cupissa-bulk-page').addEventListener('change', event=>{
+      document.querySelectorAll('#products-list .admin-product-select').forEach(input=>{
+        input.checked=event.target.checked;
+        if(input.checked) bulkSelected.add(input.value); else bulkSelected.delete(input.value);
+      }); updateBulkUi();
+    });
+    $('cupissa-bulk-clear').addEventListener('click',()=>{
+      bulkSelected.clear();document.querySelectorAll('#products-list .admin-product-select').forEach(input=>input.checked=false);
+      $('cupissa-bulk-page').checked=false;updateBulkUi();
+    });
+    $('cupissa-bulk-delete').addEventListener('click',async()=>{
+      const ids=[...bulkSelected]; if(!ids.length) return;
+      if(!navigator.onLine) return alert('Conéctate a internet para eliminar productos.');
+      if(!(await window.cupissaConfirm(`¿Eliminar definitivamente ${ids.length} producto(s)? La acción no se puede deshacer.`))) return;
+      const b=$('cupissa-bulk-delete'); b.disabled=true;b.textContent='Eliminando…';let done=0;
+      try {
+        for(let i=0;i<ids.length;i+=60){
+          const part=ids.slice(i,i+60);
+          const {data,error}=await supabaseClient.from('productos').delete().in('id',part).select('id');
+          if(error) throw error;
+          const confirmed=new Set((data||[]).map(item=>String(item.id)));
+          if(confirmed.size!==part.length) throw new Error(`Supabase eliminó ${confirmed.size} de ${part.length} registros del lote. Verifica los permisos.`);
+          part.forEach(id=>bulkSelected.delete(id));done+=confirmed.size;
+        }
+        await window.fetchProductsData?.({preserveView:true,force:true});
+        alert(`Se eliminaron ${done} productos correctamente.`);
+      }catch(error){
+        alert(`Eliminados ${done}. No se completaron los demás: ${error?.message||error}`);
+        await window.fetchProductsData?.({preserveView:true,force:true});
+      }finally{b.innerHTML='<i class="fa-solid fa-trash"></i> Eliminar seleccionados';updateBulkUi();}
+    });
+  }
   function createProductRow(product) {
     const row = document.createElement('article');
     row.className = `admin-product-row${isHidden(product) ? ' is-hidden' : ''}`;
+    row.dataset.productId=String(product.id);
+    const selectLabel=document.createElement('label');selectLabel.className='admin-product-checkbox-wrap';
+    selectLabel.title='Seleccionar producto para eliminar varios';
+    const select=document.createElement('input');select.type='checkbox';select.className='admin-product-select';
+    select.value=String(product.id);select.checked=bulkSelected.has(String(product.id));
+    select.setAttribute('aria-label',`Seleccionar ${product.nombre||'producto'}`);
+    select.addEventListener('change',()=>{
+      if(select.checked) bulkSelected.add(select.value);else bulkSelected.delete(select.value);
+      updateBulkUi();
+    });selectLabel.append(select);row.append(selectLabel);
     const imageUrl = Array.isArray(product.fotos) && product.fotos.length ? product.fotos[0] : '';
     const image = document.createElement('img');
     image.className = 'admin-product-thumb';
@@ -179,6 +240,7 @@
   function renderProductsInfinite(forceReset = false) {
     const list = $('products-list');
     if (!list) return;
+    ensureBulkBar();
     const total = Array.isArray(filteredProducts) ? filteredProducts.length : 0;
     const countToShow = Math.min(total, productsVisibleCount);
     // Se añaden solo las tarjetas nuevas. No recrear las anteriores en cada scroll.
@@ -214,6 +276,7 @@
     const sentinel = $('products-scroll-sentinel');
     if (sentinel) sentinel.textContent = countToShow < total
       ? 'Cargando más productos mientras avanzas…' : 'Has llegado al final del catálogo cargado';
+    updateBulkUi();
   }
 
   window.renderProductsTable = renderProductsInfinite;
@@ -258,7 +321,7 @@
       if (!data) throw new Error('Supabase no confirmó el cambio. Comprueba que el producto exista y que RLS permita actualizarlo.');
 
       // No se cambia la copia en memoria como si fuera la base: se vuelve a leer el estado real.
-      await window.fetchProductsData?.({ preserveView: true });
+      await window.fetchProductsData?.({ preserveView: true, force: true });
       const verb = nextHidden ? 'ocultado' : 'publicado';
       console.info(`Producto ${verb} en Supabase:`, data.id);
     } catch (error) {
@@ -267,7 +330,7 @@
       alert(missingColumn
         ? 'Falta la columna productos.oculto en Supabase. Ejecuta el SQL de configuración de esa columna.'
         : (error?.message || 'No fue posible cambiar la visibilidad del producto.'));
-      await window.fetchProductsData?.({ preserveView: true });
+      await window.fetchProductsData?.({ preserveView: true, force: true });
     }
   };
 
@@ -286,7 +349,7 @@
           const catalog = $('tab-section-catalogo');
           if (!catalog || catalog.classList.contains('hidden')) return;
           clearTimeout(productsRefreshTimer);
-          productsRefreshTimer = setTimeout(() => window.fetchProductsData?.({ preserveView: true }), 180);
+          productsRefreshTimer = setTimeout(() => window.fetchProductsData?.({ preserveView: true, force: true }), 300);
         })
         .subscribe(status => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -592,7 +655,16 @@
       <p class="sm:col-span-2 text-[10px] leading-relaxed text-slate-500">Arrastra o pega una imagen aquí (Ctrl+V), o selecciónala arriba. Esta imagen también aparecerá en grande en la galería del producto. Cuando el cliente elija este color, la ficha mostrará automáticamente su foto.</p>
       <div id="prod-color-photo-preview" class="hidden"></div>`;
     const accessoryLabel = $('inp-accesorio-foto')?.closest('label');
-    if (accessoryLabel) { accessoryLabel.id = 'prod-accessory-photo-area'; accessoryLabel.classList.add('admin-image-dropzone','rounded-xl','p-2'); accessoryLabel.title = 'Arrastra o pega una imagen del accesorio (Ctrl+V)'; accessoryLabel.tabIndex = 0; }
+    if (accessoryLabel) {
+      accessoryLabel.id = 'prod-accessory-photo-area';
+      accessoryLabel.classList.add('admin-image-dropzone','rounded-xl','p-2');
+      accessoryLabel.title = 'Arrastra o pega una imagen del accesorio (Ctrl+V)'; accessoryLabel.tabIndex = 0;
+      if (!accessoryLabel.querySelector('.cupissa-accessory-drop-hint')) {
+        const hint = document.createElement('p');hint.className='cupissa-accessory-drop-hint';
+        hint.textContent='Arrastra aquí una foto o pega una imagen con Ctrl+V. También puedes elegirla de tu dispositivo.';
+        accessoryLabel.append(hint);
+      }
+    }
     colorPhotoArea.tabIndex = 0;
     colorPhotoArea.title = 'Arrastra una imagen o pega con Ctrl+V';
     const colorChildren = Array.from(colors.children);
@@ -935,33 +1007,31 @@
     }
     zone.append(row);
   }
+  async function applyOptionPhotoFile(kind, index, selected) {
+    if (!selected) return;
+    if (!selected.type?.startsWith('image/') || selected.size > 15 * 1024 * 1024) {
+      alert('Selecciona una imagen JPG, PNG o WEBP de máximo 15 MB.'); return;
+    }
+    try {
+      const photo = await readImageFile(selected);
+      const options = kind === 'colores' ? tempColores : tempAccesorios;
+      let option = options[index]; if (!option) return;
+      if (typeof option === 'string') option = options[index] = {nombre:option,incremento:0};
+      option.foto = photo;
+      if (kind === 'colores') option.foto_original = photo;
+      option.__cupissaProductOnly = true;
+      if(kind === 'colores') window.renderColoresTags(); else window.renderAccesoriosTags();
+    } catch(error) { alert(error?.message || 'No se pudo cargar la nueva imagen.'); }
+  }
   function replaceOptionPhoto(kind, index) {
     const file = document.createElement('input');
     file.type = 'file'; file.accept = 'image/*';
     file.style.position = 'fixed'; file.style.left = '-9999px';
     document.body.appendChild(file);
     file.addEventListener('change', async () => {
-      const selected = file.files && file.files[0];
-      if (!selected) { file.remove(); return; }
-      if (selected.size > 15 * 1024 * 1024) {
-        alert('La imagen debe pesar máximo 15 MB.'); file.remove(); return;
-      }
-      try {
-        // Reemplazo directo: no depende de la cola de recortes ni de la foto original.
-        // Únicamente modifica la opción del producto que se está editando.
-        const photo = await readImageFile(selected);
-        const options = kind === 'colores' ? tempColores : tempAccesorios;
-        let option = options[index];
-        if (!option) return;
-        if (typeof option === 'string') option = options[index] = { nombre: option, incremento: 0 };
-        option.foto = photo;
-        if (kind === 'colores') option.foto_original = photo;
-        option.__cupissaProductOnly = true;
-        if (kind === 'colores') window.renderColoresTags();
-        else window.renderAccesoriosTags();
-      } catch (error) { alert(error?.message || 'No fue posible cambiar la fotografía.'); }
-      finally { file.remove(); }
-    }, { once: true });
+      await applyOptionPhotoFile(kind, index, file.files?.[0]);
+      file.remove();
+    }, {once:true});
     file.click();
   }
   function addProductOnlyPriceEditor(tag, kind, index, initialPrice) {
@@ -992,7 +1062,27 @@
     edit.className = 'admin-option-photo-edit'; edit.textContent = 'Cambiar foto';
     edit.title = 'Sustituir la fotografía de esta opción sin eliminarla';
     edit.addEventListener('click', () => replaceOptionPhoto(kind, index));
+    tag.classList.add('admin-option-drop-target');
+    tag.tabIndex = 0;
+    tag.title = 'Arrastra una nueva imagen a esta opción, pega con Ctrl+V o pulsa Cambiar foto.';
+    tag.addEventListener('dragover', event => {
+      if (!event.dataTransfer?.types?.includes('Files')) return;
+      event.preventDefault(); tag.classList.add('is-dragging');
+    });
+    tag.addEventListener('dragleave', () => tag.classList.remove('is-dragging'));
+    tag.addEventListener('drop', event => {
+      event.preventDefault(); event.stopPropagation(); tag.classList.remove('is-dragging');
+      applyOptionPhotoFile(kind, index, Array.from(event.dataTransfer?.files || []).find(file => file.type.startsWith('image/')));
+    });
+    tag.addEventListener('paste', event => {
+      const file = Array.from(event.clipboardData?.items || []).map(item => item.getAsFile()).find(file => file?.type?.startsWith('image/'));
+      if (!file) return;
+      event.preventDefault(); event.stopPropagation(); applyOptionPhotoFile(kind,index,file);
+    });
     tag.append(edit);
+    const hint = document.createElement('small');
+    hint.className='admin-option-drop-hint'; hint.textContent='Arrastra o pega foto aquí';
+    tag.append(hint);
   }
   window.cupissaAddReplaceOptionButton = addReplaceOptionButton;
   window.cupissaRenderReusableOptions = renderReusableOptions;
@@ -1127,8 +1217,8 @@
       if (!files.length) return;
       const active = document.activeElement;
       let target = 'product';
-      if (active?.id === 'prod-color-file' || $('prod-color-photo-area')?.contains(active)) target = 'color';
-      else if (active?.id === 'inp-accesorio-foto' || $('prod-accessory-photo-area')?.contains(active)) target = 'accessory';
+      if (['prod-color-file','inp-color-nombre','inp-color-incremento'].includes(active?.id) || $('prod-color-photo-area')?.contains(active)) target = 'color';
+      else if (['inp-accesorio-foto','inp-accesorio-nombre','inp-accesorio-incremento'].includes(active?.id) || $('prod-accessory-photo-area')?.contains(active)) target = 'accessory';
       event.preventDefault();
       enqueueImageFiles(files, target);
     });

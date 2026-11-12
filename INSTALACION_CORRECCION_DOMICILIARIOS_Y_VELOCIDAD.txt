@@ -1,0 +1,37 @@
+CUPISSA ADMIN | Corrección de creación de domiciliarios + velocidad de productos
+Versión: 12 de noviembre de 2026
+
+ARCHIVOS MODIFICADOS
+- assets/js/admin-domicilios.js: adjunta sesión Supabase; muestra respuesta HTTP y código exacto del error.
+- assets/js/admin-core.js: carga los primeros 100 productos cuanto antes, sigue con lotes de 1000; evita consultas simultáneas duplicadas y reutiliza datos recientes durante 25 segundos.
+- assets/js/admin-enhancements.js: fuerza lectura actualizada tras operaciones confirmadas y cambios en tiempo real.
+- index.html: cambia versiones de recursos JavaScript para evitar cargar archivos antiguos.
+- supabase/functions/cupissa-domicilios/index.ts: valida sesión, permisos y datos de forma explícita; reporta errores de Auth y SQL; revierte cuentas de Auth si falla la inserción en cupissa_domiciliarios.
+
+INSTALACIÓN
+1) Publica el contenido completo de la carpeta cupissa-admin en tu repositorio del administrador, respetando la estructura de carpetas. No sobrescribas la página de clientes ni la de domiciliarios.
+2) En Supabase > Edge Functions > cupissa-domicilios > Code, sustituye el código de index.ts con el del archivo supabase/functions/cupissa-domicilios/index.ts de este ZIP y despliega la actualización.
+3) Mantén la verificación JWT habilitada para esta Edge Function. El administrador envía el JWT de su sesión; la función vuelve a validar la sesión con Supabase Authentication.
+4) Comprueba en Edge Functions > Secrets que SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY estén disponibles; comprueba CUPISSA_ADMIN_EMAIL (si no está definido se usa contacto@cupissa.com). Nunca pongas la SERVICE_ROLE_KEY en la página web.
+5) Cierra sesión en ADMIN y vuelve a entrar con la cuenta autorizada. Recarga el navegador para recibir las nuevas versiones de JS.
+6) Crea un domiciliario de prueba con número colombiano válido y contraseña de 10 o más caracteres.
+
+SI SIGUE FALLANDO
+Ahora la página mostrará el error real y un código de diagnóstico. Puedes consultar Edge Functions > cupissa-domicilios > Logs e Invocations.
+- ADMIN_NOT_AUTHORIZED: comprueba que la sesión admin tenga correo confirmado y que coincida con CUPISSA_ADMIN_EMAIL.
+- AUTH_INVALID: sesión vencida. Cierra y vuelve a iniciar sesión.
+- PHONE_ALREADY_EXISTS: el número ya está registrado en cupissa_domiciliarios.
+- AUTH_ACCOUNT_EXISTS: la cuenta de Auth ya existía y hay que revisar su ficha antes de reintentar.
+- COURIERS_TABLE_ERROR: falta tabla o tiene un error. Verifica que ejecutaste supabase/01_CUPISSA_DOMICILIOS_20261112.sql (incluido sin cambios).
+- AUTH_DATABASE_TRIGGER_ERROR: un trigger de Supabase Authentication puede impedir crear usuarios. Ejecuta el SQL de diagnóstico optativo, revisa logs y corrige el trigger concreto. No elimines triggers sin identificarlo.
+- MISSING_SUPABASE_SECRETS: falta la configuración de la Edge Function.
+
+No hay cambios nuevos obligatorios en el esquema SQL. Incluimos el SQL original de domicilios sin modificar y un diagnóstico de solo lectura.
+
+CARGA DE PRODUCTOS
+- Primera tanda: 100 productos para mostrar el listado sin esperar una consulta grande.
+- Tandas siguientes: 1000 productos por solicitud.
+- No se reinicia una descarga si otra ya está en curso.
+- Los accesos repetidos al catálogo reutilizan datos frescos hasta 25 segundos.
+- Las ediciones, eliminaciones y cambios en tiempo real fuerzan nuevas consultas cuando corresponda.
+- Se mantiene el modo online; sin garantía fija de velocidad cuando la red o la base de datos están lentas.

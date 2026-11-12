@@ -1,0 +1,88 @@
+CUPISSA | ACTUALIZACIÓN ADMIN + DOMICILIOS
+Fecha: 12 de noviembre de 2026
+
+ANTES DE EMPEZAR
+- Conserva una copia del sitio administrativo y una copia de seguridad de Supabase.
+- Esta versión parte del ZIP administrativo más reciente (1000_PERMISOS).
+- La instalación introduce un módulo nuevo; NO elimina tablas anteriores.
+- Requiere internet para todas las operaciones con Supabase.
+
+1) SUPABASE / SQL EDITOR
+   Copia y ejecuta íntegro:
+     supabase/01_CUPISSA_DOMICILIOS_20261112.sql
+   Este SQL crea:
+     public.cupissa_domiciliarios
+     public.cupissa_domicilios
+     Storage bucket PRIVADO cupissa-entregas
+     Funciones RPC para asignación, confirmación y consulta autorizada
+   Si falla la ejecución, NO publiques el portal de repartidores hasta corregirlo.
+   No necesitas volver a ejecutar los SQL antiguos de créditos o pedidos si ya funcionan.
+
+2) SUPABASE / EDGE FUNCTIONS
+   Crea una NUEVA Edge Function llamada exactamente:
+     cupissa-domicilios
+   Pega dentro su código completo:
+     supabase/functions/cupissa-domicilios/index.ts
+   Activa Verify JWT para esta función: solo debe admitir sesiones autenticadas.
+   En Edge Function Secrets confirma que existen:
+     SUPABASE_URL
+     SUPABASE_ANON_KEY
+     SUPABASE_SERVICE_ROLE_KEY
+     CUPISSA_MAILER_URL
+     CUPISSA_MAILER_SECRET
+     CUPISSA_ADMIN_EMAIL (contacto@cupissa.com; opcional si coincide)
+   Las tres credenciales de Supabase se inyectan en muchos proyectos automáticamente;
+   comprueba su disponibilidad. NUNCA copies SERVICE_ROLE_KEY a las páginas web.
+   El correo de entrega se envía mediante el mailer existente de CUPISSA.
+   Si el mailer falla, la entrega permanece registrada y el repartidor recibe una advertencia.
+
+3) ADMIN
+   Sustituye los archivos del sitio administrativo por los contenidos de este ZIP.
+   Debes publicar sobre HTTPS para que funcionen Auth y el panel móvil.
+   En el menú aparecerá DOMICILIOS. Ahí:
+     - Verás pedidos con estado exacto EN DEPARTAMENTO DE DESPACHO.
+     - Puedes crear domiciliarios con nombre, apellido, celular y contraseña (mínimo 10 caracteres).
+     - Puedes asignar un repartidor. El pedido cambia a EN CAMINO automáticamente.
+     - En un pedido entregado con foto Y firma aparece VER ENTREGA.
+   NOTA: para enviar un pedido a la nueva sección, cambia previamente su estado
+   a EN DEPARTAMENTO DE DESPACHO desde el flujo administrativo actual.
+
+4) PORTAL INDEPENDIENTE DE DOMICILIARIOS
+   Publica el tercer ZIP en su PROPIO destino, por ejemplo:
+     https://domicilios.cupissa.com/
+   (La dirección es solo una sugerencia; configura DNS y GitHub Pages según tu hosting).
+   Si despliegas en subdominio, usa HTTPS y registra el dominio en Authentication
+   cuando corresponda. El repartidor se autentica en Supabase Auth con un correo
+   interno técnico derivado del teléfono (no se pide el correo ni se muestra).
+   Solo el admin puede registrar repartidores.
+   La clave es exclusiva para este portal y NO da permisos sobre CUPISSA ADMIN.
+
+5) WEB DE CLIENTES
+   Publica el segundo ZIP. En /perfil/, el botón VER ENTREGA aparece solamente
+   cuando el pedido está ENTREGADO y tiene fotografía y firma guardadas.
+   La prueba se obtiene mediante URL privada temporal después de verificar la sesión.
+
+6) VERIFICACIONES RECOMENDADAS
+   a. Entrar al admin y crear domiciliario.
+   b. Registrar un pedido de PRUEBA, ponerlo EN DEPARTAMENTO DE DESPACHO.
+   c. Asignarlo y comprobar EN CAMINO en ambos portales.
+   d. Acceder al portal externo con teléfono y contraseña del domiciliario.
+   e. Revisar nombre, teléfono, dirección, artículos y restante.
+   f. Tomar foto y dibujar firma; confirmar; comprobar ENTREGADO.
+   g. En admin y perfil de cliente, abrir Ver entrega; comprobar privacidad.
+   h. Comprobar correo enviado y revisar logs del Edge Function si falla.
+   i. Probar móvil con Chrome/Safari, conexión lenta y después de cerrar la sesión.
+
+RENDIMIENTO Y MODO ONLINE
+- Se retira la caché offline anterior sin sustituir pagos, credenciales ni Supabase.
+- El Service Worker queda sin interceptación de red y limpia los cachés offline anteriores.
+- No podemos garantizar carga en menos de 10 segundos con cualquier conexión,
+  catálogo, fotografías o consulta; se conservan paginación y carga diferida.
+- No se borran fotos del catálogo ni contenidos para reducir artificialmente el ZIP.
+
+SEGURIDAD
+- El bucket de evidencia de entregas es PRIVADO.
+- Repartidores consultan sus propios pedidos asignados solamente.
+- La función de Auth Admin (service_role) reside SOLO en Edge Function.
+- Firmas y fotografías de entrega contienen datos personales: controla retención,
+  política de privacidad y finalidad del tratamiento.

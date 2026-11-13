@@ -1,5 +1,0 @@
-CUPISSA ADMIN — cambios puntuales
-- Publicación de productos: subida de fotografías en paralelo (máximo 3 a la vez), reutilizando cada origen de imagen dentro del guardado.
-- Confirmación visible al completar el INSERT/UPDATE de Supabase, sin esperar la recarga del catálogo.
-- Todas las llamadas a alert() ahora generan avisos flotantes no bloqueantes; confirmaciones y formularios permanecen interactivos.
-- No se modifican tablas ni el SQL, ni las reglas comerciales.

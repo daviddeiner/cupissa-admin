@@ -120,15 +120,32 @@
      node.querySelector('button').onclick=()=>node.remove();node.addEventListener('click',e=>{if(e.target===node)node.remove()});document.body.appendChild(node);
    }catch(error){alert(error.message);}
  };
+ // Pedido: insertar solo cuando la entrega tiene las dos evidencias.
  const oldView=window.viewWebOrder;
- if(typeof oldView==='function')window.viewWebOrder=function(id){
+ if(typeof oldView==='function') window.viewWebOrder=function(id){
    oldView(id);
-   // El botón solo existe para pedidos ENTREGADOS que tengan foto Y firma.
-   db.from('cupissa_domicilios').select('foto_path,firma_path,entregado_en').eq('pedido_id',String(id)).maybeSingle().then(({data})=>{
-      if(!data?.foto_path||!data?.firma_path||!data?.entregado_en)return;
-      const container=document.querySelector('#admin-web-modal .admin-web-modal-content');if(!container)return;
-      const b=document.createElement('button');b.type='button';b.className='delivery-admin-primary mt-4';b.textContent='Ver entrega: foto y firma del cliente';b.onclick=()=>window.cupissaVerEntregaAdmin(id);container.appendChild(b);
-   }).catch(()=>{});
+   (async()=>{
+     let proof=null;
+     try {
+       const {data,error}=await db.rpc('cupissa_domicilios_entregas_admin');
+       if(!error && Array.isArray(data)) proof=data.find(d=>String(d.pedido_id)===String(id));
+       if(error) console.warn('[CUPISSA] Consulta de entregas administracion:',error.message);
+     } catch(error){ console.warn('[CUPISSA] Consulta de entrega:',error); }
+     if(!proof){
+       const {data,error}=await db.from('cupissa_domicilios')
+         .select('pedido_id,entregado_en,foto_path,firma_path').eq('pedido_id',String(id)).maybeSingle();
+       if(!error && data?.entregado_en && data?.foto_path && data?.firma_path) proof=data;
+     }
+     if(!proof) return;
+     const modal=document.querySelector('#admin-web-modal');
+     const container=modal?.querySelector('.admin-web-modal-content');
+     if(!container || container.querySelector('.cupissa-admin-proof-button'))return;
+     const b=document.createElement('button');b.type='button';
+     b.className='delivery-admin-primary cupissa-admin-proof-button mt-4';
+     b.textContent='Ver entrega · Fotografía y firma del cliente';
+     b.onclick=()=>window.cupissaVerEntregaAdmin(id);
+     container.appendChild(b);
+   })().catch(error=>console.warn('[CUPISSA] Ver entrega:',error));
  };
  window.cupissaCargarDomicilios=fetchData;
  window.switchTab=function(tab){

@@ -1211,10 +1211,31 @@
     filterWebOrders();
     if (status === 'ENTREGADO' && normalizeOrderStatus(previousStatus) !== 'ENTREGADO') {
       try {
+        const {data:sessionData,error:sessionError}=await db.auth.getSession();
+        if (sessionError) throw sessionError;
+        let session=sessionData?.session;
+        if (session?.expires_at && session.expires_at*1000<Date.now()+60_000) {
+          const refreshed=await db.auth.refreshSession();
+          if (refreshed.error) throw refreshed.error;
+          session=refreshed.data?.session;
+        }
+        if (!session?.access_token) throw new Error('Inicia sesión nuevamente como administrador para enviar el correo.');
         const {data: mail, error: mailError} = await db.functions.invoke('cupissa-pedido-entregado', {
+          headers:{Authorization:`Bearer ${session.access_token}`},
           body:{order_id:id}
         });
-        if (mailError) throw mailError;
+        if (mailError) {
+          let detail=mailError.message||'Error al enviar el correo';
+          try {
+            const response=mailError.context;
+            if (response && typeof response.clone==='function') {
+              const problem=await response.clone().json();
+              detail=problem.detail||problem.error||detail;
+              if (problem.code) detail=`${problem.code}: ${detail}`;
+            }
+          }catch (_) { /* Mantener el mensaje de error original. */ }
+          throw new Error(detail);
+        }
         if (mail?.ok === false) throw new Error(mail.detail || mail.error || 'No se confirmó el correo.');
         if (mail?.skipped) alert('Pedido entregado. No se envió correo: ' + mail.reason);
       } catch (emailError) {

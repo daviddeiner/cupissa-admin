@@ -1,0 +1,39 @@
+CUPISSA | CORREOS DE PEDIDOS ENTREGADOS | REVISIÓN 2 - 13-11-2026
+
+La función cupissa-domicilios está basada en la versión actual facilitada
+por Diani (342 líneas originales). Se conservan las validaciones de GPS,
+el seguimiento en ruta, el registro de ubicación final, la resolución
+ampliada de correos y todas las demás acciones existentes.
+La modificación es únicamente la llamada al correo de entrega y su respaldo.
+
+Este ZIP contiene el administrador completo y dos Edge Functions actualizadas:
+
+1. supabase/functions/cupissa-pedido-entregado/index.ts
+2. supabase/functions/cupissa-domicilios/index.ts
+
+INSTALACIÓN
+
+1. Publica el administrador normalmente (incluidos los archivos assets).
+2. En Supabase > Edge Functions > cupissa-pedido-entregado, reemplaza
+   el index.ts por el del ZIP y haz Deploy.
+3. En Supabase > Edge Functions > cupissa-domicilios, reemplaza
+   el index.ts por el del ZIP y haz Deploy.
+4. Comprueba en Edge Functions > Secrets que estén configurados:
+   CUPISSA_MAILER_URL, CUPISSA_MAILER_SECRET y CUPISSA_ADMIN_EMAIL.
+   CUPISSA_ADMIN_EMAIL debe corresponder al correo de inicio de sesión
+   del administrador; por defecto se reconoce contacto@cupissa.com.
+   SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY deben estar disponibles.
+5. Mantén la verificación JWT activada en las dos funciones y no coloques
+   claves de servicio en archivos públicos.
+
+PRUEBA
+
+- Desde el administrador: cambia un pedido EN CAMINO a ENTREGADO.
+- Desde el domiciliario: completa foto y firma, luego marca ENTREGADO.
+- Verifica el buzón del cliente y, si no se confirma, mira los registros
+  de ambas Edge Functions. Un pedido entregado no se revierte por fallo del correo.
+- No marques pedidos reales repetidamente para probar: el proveedor puede
+  deduplicar las notificaciones por ID del pedido.
+
+NOTA: Este paquete no configura automáticamente los Secrets ni publica las
+Edge Functions en tu proyecto. Ambos despliegues son necesarios.

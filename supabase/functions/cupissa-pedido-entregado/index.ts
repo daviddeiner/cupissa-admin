@@ -82,6 +82,14 @@ async function getOrderEmail(source: 'pedidos' | 'pedidos_web', record: Record<s
     }
   }
 
+  // También existen pedidos históricos vinculados a la tabla clientes.
+  for (const id of identifiers) {
+    const {data, error} = await db.from('clientes').select('id,nombre,correo').eq('id',id).maybeSingle();
+    if (error) console.warn('[cupissa-pedido-entregado] clientes por id:',error.message);
+    if (data && validEmail(data.correo))
+      return {email:String(data.correo).trim(),name:String(data.nombre || name).trim()};
+  }
+
   // Última alternativa para registros históricos sin identificador coincidente:
   // usar teléfono solo si identifica a una única ficha web.
   const phone = String(record.telefono || record.contacto || '').replace(/\D/g, '');
@@ -113,19 +121,25 @@ function emailLayout(p: { preheader: string; title: string; greeting: string; co
 
 
 // CUPISSA | Notificación de entrega independiente.
-async function authorizeAdmin(req: Request) {
+async function authorizeDelivery(req: Request, orderId: string) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!token) return { ok: false, code: 'AUTH_MISSING', reason: 'No llegó la sesión del administrador.' };
+  if (!token) return { ok: false, code: 'AUTH_MISSING', reason: 'No llegó la sesión de usuario.' };
   const { data, error } = await db.auth.getUser(token);
   if (error || !data?.user) return { ok: false, code: 'AUTH_INVALID', reason: 'La sesión enviada no es válida o ha vencido.' };
-  const allowedEmail = env('CUPISSA_ADMIN_EMAIL').trim().toLowerCase();
-  if (!allowedEmail) return { ok: false, code: 'ADMIN_NOT_CONFIGURED', reason: 'Falta CUPISSA_ADMIN_EMAIL en Secrets.' };
+  const allowedEmail = (env('CUPISSA_ADMIN_EMAIL') || 'contacto@cupissa.com').trim().toLowerCase();
   const signedInEmail = String(data.user.email || '').trim().toLowerCase();
-  if (signedInEmail !== allowedEmail) {
-    console.error('[cupissa-emails] Admin no autorizado: correo de sesión no coincide con el secreto configurado.');
-    return { ok: false, code: 'ADMIN_EMAIL_MISMATCH', reason: 'El correo de la sesión no coincide con CUPISSA_ADMIN_EMAIL.' };
+  if (signedInEmail === allowedEmail && !!data.user.email_confirmed_at) {
+    return {ok:true,code:'AUTHORIZED_ADMIN',reason:'Administrador autorizado'};
   }
-  return { ok: true, code: 'AUTHORIZED', reason: 'Autorizado' };
+  // El domiciliario solo puede notificar una entrega propia, ya confirmada con foto y firma.
+  const {data:assignment,error:assignmentError} = await db.from('cupissa_domicilios')
+    .select('domiciliario_id,entregado_en,foto_path,firma_path').eq('pedido_id',orderId).maybeSingle();
+  if (assignmentError) return {ok:false,code:'ASSIGNMENT_ERROR',reason:assignmentError.message};
+  if (assignment?.domiciliario_id === data.user.id && assignment.entregado_en && assignment.foto_path && assignment.firma_path) {
+    const {data:courier} = await db.from('cupissa_domiciliarios').select('activo').eq('id',data.user.id).maybeSingle();
+    if (courier?.activo) return {ok:true,code:'AUTHORIZED_COURIER',reason:'Domiciliario autorizado'};
+  }
+  return {ok:false,code:'FORBIDDEN',reason:'Solo el administrador o el domiciliario asignado pueden notificar esta entrega.'};
 }
 
 
@@ -134,11 +148,11 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', {headers:cors});
   if (req.method !== 'POST') return Response.json({ok:false,error:'Método no permitido'}, {status:405,headers:cors});
   try {
-    const allowed = await authorizeAdmin(req);
-    if (!allowed.ok) return Response.json({ok:false,error:allowed.reason,code:allowed.code},{status:403,headers:cors});
     const body = await req.json();
     const orderId = String(body.order_id || '').trim();
     if (!orderId || orderId.length > 128) return Response.json({ok:false,error:'Pedido inválido'},{status:400,headers:cors});
+    const allowed = await authorizeDelivery(req,orderId);
+    if (!allowed.ok) return Response.json({ok:false,error:allowed.reason,code:allowed.code},{status:403,headers:cors});
     const {data:order,error} = await db.from('pedidos_web').select('*').eq('id',orderId).maybeSingle();
     if (error) throw error;
     if (!order) return Response.json({ok:false,error:'Pedido no encontrado'},{status:404,headers:cors});

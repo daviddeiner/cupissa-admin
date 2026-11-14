@@ -142,6 +142,7 @@
                         <button onclick="switchTab('domicilios')" id="tab-btn-domicilios" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-motorcycle mr-1"></i> Domicilios</button>
                         <button onclick="switchTab('vistas')" id="tab-btn-vistas" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-eye mr-1.5"></i> Vistas</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
+                        <button onclick="switchTab('notificaciones')" id="tab-btn-notificaciones" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-regular fa-bell mr-1.5"></i> Notificaciones</button>
                     </nav>
                 </div>
 
@@ -163,6 +164,7 @@
         <button onclick="switchTab('alquileres')" id="tab-btn-alquileres-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Alquileres</button>
         <button onclick="switchTab('vistas')" id="tab-btn-vistas-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600"><i class="fa-solid fa-eye mr-1"></i> Vistas</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
+        <button onclick="switchTab('notificaciones')" id="tab-btn-notificaciones-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Avisos</button>
     </div>
 
     <nav class="cupissa-admin-appnav" aria-label="Navegación móvil de administrador">
@@ -172,7 +174,7 @@
       <button type="button" data-app-tab="domicilios" onclick="switchTab('domicilios')"><i class="fa-solid fa-motorcycle"></i><span>Domicilios</span></button>
       <button type="button" id="cupissa-admin-more"><i class="fa-solid fa-ellipsis"></i><span>Más</span></button>
     </nav>
-    <div id="cupissa-admin-more-menu" class="hidden cupissa-admin-more-menu"><button onclick="switchTab('vistas')">Visitas</button><button onclick="switchTab('alquileres')">Alquileres</button><button onclick="switchTab('web-clientes')">Clientes web</button></div>
+    <div id="cupissa-admin-more-menu" class="hidden cupissa-admin-more-menu"><button onclick="switchTab('vistas')">Visitas</button><button onclick="switchTab('alquileres')">Alquileres</button><button onclick="switchTab('web-clientes')">Clientes web</button><button onclick="switchTab('notificaciones')">Notificaciones</button></div>
 
     <!-- MAIN CONTAINER -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -376,6 +378,19 @@
 
         <div id="admin-web-modal-root"></div>
 
+        <section id="tab-section-notificaciones" class="hidden space-y-5">
+          <div class="bg-white rounded-3xl shadow-sm border border-pink-100 p-5 sm:p-7 space-y-5">
+            <div><h2 class="text-xl font-black text-slate-900"><i class="fa-regular fa-bell text-pink-600 mr-2"></i>Notificaciones CUPISSA</h2><p class="text-xs text-slate-500 mt-2">Envía una notificación a los clientes que autorizaron avisos en su aplicación. Puedes incluir enlaces de productos, promociones o novedades.</p></div>
+            <form id="cupissa-push-campaign-form" class="space-y-4">
+              <label class="block text-xs font-bold text-slate-700">Título de la notificación<input name="title" maxlength="90" required placeholder="Ej. Nueva colección CUPISSA" class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></label>
+              <label class="block text-xs font-bold text-slate-700">Mensaje<textarea name="message" maxlength="260" required rows="3" placeholder="Descubre nuestros nuevos productos..." class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></textarea></label>
+              <label class="block text-xs font-bold text-slate-700">Enlace al tocar la notificación<input name="url" type="url" required value="https://app.cupissa.com/catalogo/" placeholder="https://app.cupissa.com/catalogo/?producto=..." class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></label>
+              <p class="text-[11px] text-slate-500">Los estados de pedidos se notifican automáticamente al cliente correspondiente. Este formulario es exclusivamente para avisos promocionales.</p>
+              <button type="submit" id="cupissa-push-submit" class="fuchsia-btn rounded-xl px-5 py-3 text-xs font-black"><i class="fa-solid fa-paper-plane mr-1"></i> Enviar notificación a la app</button>
+            </form>
+            <p id="cupissa-push-result" class="text-sm font-bold" role="status" aria-live="polite"></p>
+          </div>
+        </section>
     </main>
 
     <!-- MODAL 1: REGISTRAR NUEVO CLIENTE -->
@@ -769,6 +784,7 @@
     <script src="assets/js/admin-core.js?v=20261112-products-speed-2"></script>
     <script src="assets/js/admin-web.js?v=20261113-entrega-2"></script>
     <script src="assets/js/admin-enhancements.js?v=20261112-products-speed-2"></script>
+    <script src="assets/js/admin-notifications.js?v=20261114-push-1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
     <script src="assets/js/admin-domicilios.js?v=20261112-proof-2"></script>

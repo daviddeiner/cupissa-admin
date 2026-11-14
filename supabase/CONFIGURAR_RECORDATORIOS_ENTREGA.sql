@@ -1,5 +1,6 @@
 -- CUPISSA | Ejecutar UNA VEZ en Supabase > SQL Editor.
--- Requiere desplegar antes la Edge Function cupissa-recordatorio-entrega con verify_jwt=false.
+-- Requiere desplegar antes la Edge Function cupissa-recordatorio-entrega.
+-- Con service_role JWT puedes mantener Verify JWT activado.
 -- NO se editan pedidos_web, clientes, créditos ni las Edge Functions existentes.
 -- IMPORTANTE: guarda tu clave antigua service_role JWT en Supabase Vault como
 -- 'cupissa_delivery_service_role' (es la misma que SUPABASE_SERVICE_ROLE_KEY de Edge Secrets).

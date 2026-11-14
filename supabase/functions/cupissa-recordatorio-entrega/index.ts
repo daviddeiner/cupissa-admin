@@ -117,11 +117,32 @@ async function processToday(date:string) {
   return result;
 }
 
+// Validar la clave contra Supabase Auth, igual que los flujos protegidos de
+// cupissa-emails. No dependemos de comparar cadenas de distintos secretos.
+// El endpoint /auth/v1/admin/users solo permite credenciales service_role.
+async function authorizeServiceCall(req: Request) {
+  const authorization = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i,'').trim();
+  const candidate = authorization || String(req.headers.get('apikey') || '').trim();
+  if (!candidate || !env('SUPABASE_URL')) return false;
+  try {
+    const response = await fetch(`${env('SUPABASE_URL')}/auth/v1/admin/users?page=1&per_page=1`, {
+      method:'GET',
+      headers:{'Authorization':`Bearer ${candidate}`,'apikey':candidate},
+      signal:AbortSignal.timeout(10000),
+      cache:'no-store',
+    });
+    if (!response.ok) console.warn('[cupissa-recordatorio-entrega] Auth rechazó credenciales de servicio:',response.status);
+    return response.ok;
+  } catch (error) {
+    console.error('[cupissa-recordatorio-entrega] No se pudo validar la credencial:',String(error));
+    return false;
+  }
+}
+
 Deno.serve(async req => {
   if (req.method!=='POST') return Response.json({ok:false,error:'Método no permitido'},{status:405});
-  // Deploy con verify_jwt=false. Solo service_role puede ejecutar esta función.
-  if (!req.headers.get('apikey') || req.headers.get('apikey') !== env('SUPABASE_SERVICE_ROLE_KEY'))
-    return Response.json({ok:false,error:'No autorizado'},{status:401});
+  if (!(await authorizeServiceCall(req)))
+    return Response.json({ok:false,error:'No autorizado: Supabase Auth no validó la credencial de servicio'},{status:401});
   try {
     const body = await req.json().catch(()=>({})) as {mode?:string};
     const {date,hour} = nowBogota();

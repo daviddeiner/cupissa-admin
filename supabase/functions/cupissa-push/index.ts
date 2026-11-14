@@ -6,8 +6,11 @@ const env = (k:string) => Deno.env.get(k) || '';
 const db = createClient(env('SUPABASE_URL'),env('SUPABASE_SERVICE_ROLE_KEY'),{
   auth:{persistSession:false,autoRefreshToken:false},
 });
-const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,apikey,content-type',
-  'Access-Control-Allow-Methods':'POST,OPTIONS'};
+const cors = {
+  'Access-Control-Allow-Origin':'*',
+  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage',
+  'Access-Control-Allow-Methods':'POST, OPTIONS',
+};
 const reply = (value:unknown,status=200) => Response.json(value,{status,headers:cors});
 const jwtFrom = (req:Request) => (req.headers.get('authorization') || '').replace(/^Bearer\s+/i,'').trim();
 const validUrl = (value:unknown) => {

@@ -384,6 +384,15 @@
             <form id="cupissa-push-campaign-form" class="space-y-4">
               <label class="block text-xs font-bold text-slate-700">Título de la notificación<input name="title" maxlength="90" required placeholder="Ej. Nueva colección CUPISSA" class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></label>
               <label class="block text-xs font-bold text-slate-700">Mensaje<textarea name="message" maxlength="260" required rows="3" placeholder="Descubre nuestros nuevos productos..." class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></textarea></label>
+              <div><span class="block text-xs font-bold text-slate-700 mb-2">Fotografía de la notificación (opcional)</span>
+                <div id="cupissa-push-image-zone" tabindex="0" role="button" aria-label="Pegar, arrastrar o seleccionar fotografía" class="border-2 border-dashed border-pink-200 bg-pink-50/40 rounded-2xl p-4 flex flex-col items-center gap-2 cursor-pointer text-center">
+                  <i class="fa-regular fa-image text-pink-500 text-2xl"></i>
+                  <p class="text-xs font-bold text-slate-600">Pega una imagen (Ctrl+V), arrástrala aquí o selecciónala desde archivos</p>
+                  <input type="file" id="cupissa-push-image-input" accept="image/png,image/jpeg,image/webp" class="text-xs max-w-full">
+                  <img id="cupissa-push-image-preview" alt="Vista previa de la notificación" class="hidden max-h-40 max-w-full rounded-xl object-contain">
+                  <button type="button" id="cupissa-push-image-remove" class="hidden px-3 py-1.5 bg-white rounded-lg border border-pink-200 text-pink-700 text-xs font-bold">Quitar fotografía</button>
+                </div><p class="text-[10px] text-slate-500 mt-2">La foto será la imagen principal; el favicon de CUPISSA permanecerá como icono pequeño. Máximo 4 MB.</p>
+              </div>
               <label class="block text-xs font-bold text-slate-700">Enlace al tocar la notificación<input name="url" type="url" required value="https://app.cupissa.com/catalogo/" placeholder="https://app.cupissa.com/catalogo/?producto=..." class="mt-2 block w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"></label>
               <p class="text-[11px] text-slate-500">Los estados de pedidos se notifican automáticamente al cliente correspondiente. Este formulario es exclusivamente para avisos promocionales.</p>
               <button type="submit" id="cupissa-push-submit" class="fuchsia-btn rounded-xl px-5 py-3 text-xs font-black"><i class="fa-solid fa-paper-plane mr-1"></i> Enviar notificación a la app</button>
@@ -784,7 +793,7 @@
     <script src="assets/js/admin-core.js?v=20261112-products-speed-2"></script>
     <script src="assets/js/admin-web.js?v=20261113-entrega-2"></script>
     <script src="assets/js/admin-enhancements.js?v=20261112-products-speed-2"></script>
-    <script src="assets/js/admin-notifications.js?v=20261114-push-1"></script>
+    <script src="assets/js/admin-notifications.js?v=20261114-push-image-v2"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
     <script src="assets/js/admin-domicilios.js?v=20261112-proof-2"></script>

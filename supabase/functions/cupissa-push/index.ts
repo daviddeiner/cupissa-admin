@@ -48,13 +48,14 @@ async function keys() {
   if (readError) throw readError;
   return existing;
 }
-type Notice = {title:string;body:string;url:string;tag?:string};
+type Notice = {title:string;body:string;url:string;tag?:string;imageUrl?:string};
 async function sendToSubscribers(subs:Array<{endpoint:string;subscription:unknown}>,notice:Notice) {
   if (!subs.length) return {targets:0,sent:0,failed:0};
   const vapid = await keys();
   webpush.setVapidDetails('mailto:contacto@cupissa.com',vapid.vapid_public,vapid.vapid_private);
   let sent=0,failed=0;
-  const payload = JSON.stringify({...notice,icon:'/catalogo/assets/images/app-icon-192.png'});
+  const payload = JSON.stringify({...notice,icon:notice.imageUrl || '/catalogo/assets/images/favicon.png',
+    badge:'/catalogo/assets/images/favicon.png'});
   // Lotes reducidos para no saturar Supabase ni el servicio push.
   for(let offset=0;offset<subs.length;offset+=15) {
     const chunk = subs.slice(offset,offset+15);
@@ -138,6 +139,8 @@ Deno.serve(async req=>{
     }
     const user = await signedUser(req);
     if (!user) return reply({ok:false,error:'Inicia sesión'},401);
+    const isAdmin = !!env('CUPISSA_ADMIN_EMAIL') &&
+      String(user.email || '').trim().toLowerCase() === env('CUPISSA_ADMIN_EMAIL').trim().toLowerCase();
     if (action==='config') return reply({ok:true,vapidPublicKey:(await keys()).vapid_public});
     if (action==='subscribe') {
       const subscription=body.subscription as Record<string,unknown>;
@@ -157,13 +160,50 @@ Deno.serve(async req=>{
       if(error) throw error;
       return reply({ok:true});
     }
+    if (action==='upload_image') {
+      if (!isAdmin) return reply({ok:false,error:'Acceso exclusivo de administración'},403);
+      const mime=String(body.mime || '');
+      const types:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'};
+      const extension=types[mime];
+      const base64=String(body.fileBase64 || '');
+      if(!extension || !base64 || base64.length>5_600_000)
+        return reply({ok:false,error:'Imagen inválida o superior a 4 MB'},400);
+      let bytes:Uint8Array;
+      try {bytes=Uint8Array.from(atob(base64),char=>char.charCodeAt(0));}
+      catch {return reply({ok:false,error:'No se pudo leer la imagen'},400);}
+      if(bytes.length>4*1024*1024) return reply({ok:false,error:'Máximo 4 MB'},400);
+      // Validar la firma real, además del MIME declarado.
+      const png=bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4e && bytes[3]===0x47;
+      const jpg=bytes[0]===0xff && bytes[1]===0xd8 && bytes[2]===0xff;
+      const webp=String.fromCharCode(...bytes.slice(0,4))==='RIFF' && String.fromCharCode(...bytes.slice(8,12))==='WEBP';
+      if (!(mime==='image/png'&&png || mime==='image/jpeg'&&jpg || mime==='image/webp'&&webp))
+        return reply({ok:false,error:'El formato real del archivo no coincide con la imagen'},400);
+      const bucket='cupissa-push-media';
+      const {error:bucketError}=await db.storage.getBucket(bucket);
+      if(bucketError) {
+        const {error:createError}=await db.storage.createBucket(bucket,{
+          public:true,fileSizeLimit:4*1024*1024,allowedMimeTypes:Object.keys(types),
+        });
+        if(createError && !String(createError.message).toLowerCase().includes('already exists')) throw createError;
+      }
+      const path=`campanas/${crypto.randomUUID()}.${extension}`;
+      const {error:uploadError}=await db.storage.from(bucket).upload(path,bytes,{
+        contentType:mime,cacheControl:'31536000',upsert:false,
+      });
+      if(uploadError) throw uploadError;
+      const {data:link}=db.storage.from(bucket).getPublicUrl(path);
+      return reply({ok:true,imageUrl:link.publicUrl});
+    }
     if (action==='campaign') {
-      if (String(user.email || '').trim().toLowerCase()!==env('CUPISSA_ADMIN_EMAIL').trim().toLowerCase() || !env('CUPISSA_ADMIN_EMAIL'))
+      if (!isAdmin)
         return reply({ok:false,error:'Acceso exclusivo de administración'},403);
       const title=String(body.title || '').trim().slice(0,90);
       const message=String(body.message || '').trim().slice(0,260);
       const url=validUrl(body.url);
+      const imageUrl=body.imageUrl ? validUrl(body.imageUrl) : null;
       if(!title || !message || !url) return reply({ok:false,error:'Completa título, mensaje y un enlace HTTPS válido'},400);
+      if(body.imageUrl && (!imageUrl || !imageUrl.includes('/storage/v1/object/public/cupissa-push-media/')))
+        return reply({ok:false,error:'La imagen debe provenir de la carpeta privada de campañas CUPISSA'},400);
       const all:Array<{endpoint:string;subscription:unknown}>=[];
       for(let from=0;from<10000;from+=500) {
         const {data,error}=await db.from('cupissa_push_subscriptions').select('endpoint,subscription').eq('active',true).range(from,from+499);
@@ -171,7 +211,8 @@ Deno.serve(async req=>{
         all.push(...(data || []));
         if((data || []).length<500) break;
       }
-      const result=await sendToSubscribers(all,{title,body:message,url,tag:`cupissa-promo-${Date.now()}`});
+      const result=await sendToSubscribers(all,{title,body:message,url,imageUrl:imageUrl || undefined,
+        tag:`cupissa-promo-${Date.now()}`});
       await db.from('cupissa_push_campaigns').insert({titulo:title,mensaje:message,enlace:url,enviado_por:user.email,
         destinatarios:result.targets,exitos:result.sent});
       return reply({ok:true,result});

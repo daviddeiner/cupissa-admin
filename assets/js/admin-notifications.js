@@ -24,6 +24,58 @@
     document.getElementById('cupissa-admin-more-menu')?.classList.add('hidden');
     document.querySelectorAll('[data-app-tab]').forEach(btn=>btn.classList.toggle('is-active',false));
   };
+  let selectedImage = null;
+  let imagePreviewUrl = '';
+  const imageInput = document.getElementById('cupissa-push-image-input');
+  const imageZone = document.getElementById('cupissa-push-image-zone');
+  const imagePreview = document.getElementById('cupissa-push-image-preview');
+  const imageRemove = document.getElementById('cupissa-push-image-remove');
+  const imageError = message => {document.getElementById('cupissa-push-result').textContent=message;};
+  function setImage(file) {
+    if (!file) return;
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type)) return imageError('Selecciona JPG, PNG o WEBP.');
+    if (file.size>4*1024*1024) return imageError('La imagen debe pesar menos de 4 MB.');
+    if(imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    imagePreviewUrl=URL.createObjectURL(file);
+    selectedImage=file;
+    imagePreview.src=imagePreviewUrl;
+    imagePreview.classList.remove('hidden');
+    imageRemove.classList.remove('hidden');
+    document.getElementById('cupissa-push-result').textContent='Fotografía lista para enviar.';
+  }
+  imageInput?.addEventListener('change',event=>setImage(event.target.files?.[0]));
+  imageZone?.addEventListener('click',event=>{
+    if(event.target.closest('input,button')) return;
+    imageInput?.click();
+  });
+  imageZone?.addEventListener('keydown',event=>{
+    if((event.key==='Enter'||event.key===' ') && event.target===imageZone) {event.preventDefault();imageInput?.click();}
+  });
+  ['dragenter','dragover'].forEach(name=>imageZone?.addEventListener(name,event=>{
+    event.preventDefault();imageZone.classList.add('border-pink-600','bg-pink-100');
+  }));
+  ['dragleave','drop'].forEach(name=>imageZone?.addEventListener(name,event=>{
+    event.preventDefault();imageZone.classList.remove('border-pink-600','bg-pink-100');
+    if(name==='drop') setImage(event.dataTransfer?.files?.[0]);
+  }));
+  document.addEventListener('paste',event=>{
+    if(document.getElementById('tab-section-notificaciones')?.classList.contains('hidden')) return;
+    const file=Array.from(event.clipboardData?.items || []).find(item=>item.kind==='file' && item.type.startsWith('image/'))?.getAsFile();
+    if(file) {event.preventDefault();setImage(file);}
+  });
+  imageRemove?.addEventListener('click',event=>{
+    event.stopPropagation();selectedImage=null;
+    if(imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    imagePreviewUrl='';imagePreview.removeAttribute('src');imagePreview.classList.add('hidden');
+    imageRemove.classList.add('hidden');if(imageInput) imageInput.value='';
+  });
+  async function imageToBase64(file) {
+    const buffer=await file.arrayBuffer();
+    const bytes=new Uint8Array(buffer);
+    let binary='';
+    for(let i=0;i<bytes.length;i+=8192) binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+    return btoa(binary);
+  }
   document.getElementById('cupissa-push-campaign-form')?.addEventListener('submit',async event => {
     event.preventDefault();
     const form=event.currentTarget;
@@ -38,8 +90,17 @@
     btn.disabled=true;
     result.textContent='Enviando notificaciones…';
     try {
+      let imageUrl='';
+      if(selectedImage) {
+        result.textContent='Subiendo fotografía…';
+        const {data:uploaded,error:uploadError}=await supabaseClient.functions.invoke('cupissa-push',{
+          body:{action:'upload_image',mime:selectedImage.type,fileBase64:await imageToBase64(selectedImage)},
+        });
+        if(uploadError || !uploaded?.ok) throw new Error(uploaded?.error || uploadError?.message || 'No se pudo subir la fotografía.');
+        imageUrl=uploaded.imageUrl;
+      }
       const {data,error}=await supabaseClient.functions.invoke('cupissa-push',{
-        body:{action:'campaign',title,message,url},
+        body:{action:'campaign',title,message,url,imageUrl},
       });
       if(error || !data?.ok) throw new Error(data?.error || error?.message || 'Error desconocido');
       result.className='text-sm font-bold text-green-700';

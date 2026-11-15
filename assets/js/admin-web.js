@@ -694,6 +694,15 @@
       : { nombre:String(item?.nombre || ''), incremento:Number(item?.incremento || item?.adicional || 0), foto:item?.foto || item?.imagen || '' })
       .filter(item => item.nombre);
   }
+  function orderCatalogProductAllowed(product) {
+    if (!product || product.oculto === true || product.oculto === 'true') return false;
+    const rent = $('web-order-type')?.value === 'ALQUILER';
+    return rent ? (product.alquiler === true || product.alquiler === 'true')
+      : product.venta !== false && product.venta !== 'false';
+  }
+  function orderCatalogPrice(product) {
+    return Math.max(0, Number(($('web-order-type')?.value === 'ALQUILER' ? product?.precio_alquiler : product?.precio_detal) || 0));
+  }
   let orderProductRowCounter = 0;
   function addProductRow() {
     const container = $('web-order-products'); if (!container) return;
@@ -701,13 +710,14 @@
     const row = document.createElement('div'); row.className = 'admin-order-product-row admin-web-product-row';
     row.innerHTML = `
       <div class="wide admin-web-product-picker"><label class="admin-web-label">Seleccionar producto del catálogo</label><input class="admin-web-input" data-field="product_search" type="search" autocomplete="off" placeholder="Buscar producto por nombre..." aria-label="Buscar productos con fotografías" aria-expanded="false"><select class="hidden" tabindex="-1" aria-hidden="true" data-field="producto_id"><option value="">Selecciona un producto</option><option value="__custom__">Producto nuevo / personalizado</option></select><div class="admin-web-product-results" data-field="product_results" hidden></div><div class="admin-web-product-selected" data-field="product_selected" hidden></div><input class="admin-web-input mt-2 hidden" data-field="custom_name" placeholder="Nombre del producto nuevo"></div>
-      <div><label class="admin-web-label">Precio unitario ($)</label><input class="admin-web-input" data-field="precio" type="number" min="0" step="1" value="0" required></div>
+      <div><label class="admin-web-label">Precio base editable ($)</label><input class="admin-web-input" data-field="precio" type="number" min="0" step="1" value="0" required></div>
       <div><label class="admin-web-label">Cantidad</label><input class="admin-web-input" data-field="cantidad" type="number" min="1" step="1" value="1" required></div>
       <div><label class="admin-web-label">Talla / medida</label><input class="admin-web-input" data-field="talla" list="${rowUid}-sizes" placeholder="Elegir o escribir"></div>
       <div><label class="admin-web-label">Color</label><input class="admin-web-input" data-field="color" list="${rowUid}-colors" placeholder="Elegir o escribir"></div>
-      <div><label class="admin-web-label">Accesorio / variante</label><input class="admin-web-input" data-field="accesorio" list="${rowUid}-accessories" placeholder="Opcional"></div>
+      <div class="wide"><div class="flex justify-between items-center gap-2 mb-2"><label class="admin-web-label mb-0">Accesorios y aumentos</label><button type="button" class="admin-web-button" data-add-accessory><i class="fa-solid fa-plus mr-1"></i> Agregar accesorio</button></div><div data-accessory-rows class="space-y-2"></div></div>
       <div><label class="admin-web-label">Incremento manual ($)</label><input class="admin-web-input" data-field="incremento_manual" type="number" min="0" step="1" value="0"></div>
       <div class="wide"><label class="admin-web-label">Fotografía de este producto</label><input class="admin-web-input" data-field="product_photo" type="file" accept="image/*"><div data-field="product_photo_preview" class="mt-2" hidden></div></div>
+      <div class="wide"><p class="text-xs font-black text-pink-700" data-line-total>Subtotal: $ 0</p></div>
       <div class="wide"><label class="admin-web-label">Referencia (opcional)</label><input class="admin-web-input" data-field="referencia" placeholder="Referencia o detalle"></div>
       <div class="wide flex justify-end"><button type="button" class="px-3 py-2 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold" title="Quitar producto" onclick="this.closest('.admin-web-product-row').remove();recalculateWebOrderTotal()"><i class="fa-solid fa-trash mr-1"></i> Quitar</button></div>`;
     container.appendChild(row);
@@ -732,13 +742,34 @@
     const customName = row.querySelector('[data-field="custom_name"]');
     const sizeInput = row.querySelector('[data-field="talla"]');
     const colorInput = row.querySelector('[data-field="color"]');
-    const accessoryInput = row.querySelector('[data-field="accesorio"]');
     const priceInput = row.querySelector('[data-field="precio"]');
     const manualIncrementInput = row.querySelector('[data-field="incremento_manual"]');
     const datalistIds = {
-      talla: sizeInput.getAttribute('list'), color: colorInput.getAttribute('list'), accesorio: accessoryInput.getAttribute('list')
+      talla: sizeInput.getAttribute('list'), color: colorInput.getAttribute('list'), accesorio: `${rowUid}-accessories`
     };
     Object.values(datalistIds).forEach(id => { const list = document.createElement('datalist'); list.id = id; row.appendChild(list); });
+    row._variantIncrease = 0;
+    row._accessoryOptions = [];
+    const accessoryRows = row.querySelector('[data-accessory-rows]');
+    function addAccessory(name = '', increment = 0) {
+      const entry = document.createElement('div');
+      entry.className = 'admin-order-accessory-row';
+      entry.innerHTML = `<input class="admin-web-input" data-accessory-name list="${datalistIds.accesorio}" placeholder="Accesorio (elige o escribe)" aria-label="Nombre del accesorio"><input class="admin-web-input" data-accessory-increase type="number" min="0" step="1" value="0" aria-label="Aumento del accesorio en pesos"><button type="button" class="admin-web-button" data-remove-accessory aria-label="Quitar accesorio"><i class="fa-solid fa-xmark"></i></button>`;
+      accessoryRows.appendChild(entry);
+      const nameInput = entry.querySelector('[data-accessory-name]');
+      const incrementInput = entry.querySelector('[data-accessory-increase]');
+      nameInput.value = name;
+      incrementInput.value = String(increment);
+      nameInput.addEventListener('change', () => {
+        const match = row._accessoryOptions.find(item => item.nombre.toLowerCase() === nameInput.value.trim().toLowerCase());
+        if (match) incrementInput.value = String(match.incremento);
+        recalculateWebOrderTotal();
+      });
+      entry.addEventListener('input', recalculateWebOrderTotal);
+      entry.querySelector('[data-remove-accessory]').addEventListener('click', () => { entry.remove(); recalculateWebOrderTotal(); });
+      recalculateWebOrderTotal();
+    }
+    row.querySelector('[data-add-accessory]').addEventListener('click', () => addAccessory());
 
     // Selector personalizado: los <option> HTML no pueden contener fotografías.
     // Conservamos el select oculto para no alterar la lógica de variantes ni el guardado.
@@ -766,15 +797,15 @@
       } else {
         const product = getCatalogProducts().find(item => String(item.id) === String(id));
         productSearch.value = String(product?.nombre || label);
-        productSelected.innerHTML = `<div class="admin-web-product-option">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product?.nombre || label)}</strong><small>${cop(product?.precio_detal)}</small></span><span class="admin-web-product-check"><i class="fa-solid fa-check"></i></span></div>`;
+        productSelected.innerHTML = `<div class="admin-web-product-option">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product?.nombre || label)}</strong><small>${cop(orderCatalogPrice(product))}</small></span><span class="admin-web-product-check"><i class="fa-solid fa-check"></i></span></div>`;
         productSelected.hidden = false;
       }
     };
     const renderProductResults = () => {
       const query = normalizeSearch(productSearch.value.trim());
-      const catalog = getCatalogProducts();
+      const catalog = getCatalogProducts().filter(orderCatalogProductAllowed);
       const matches = catalog.filter(item => !query || normalizeSearch(item.nombre).includes(query)).slice(0, 70);
-      productResults.innerHTML = matches.map((product, idx) => `<button type="button" class="admin-web-product-option" data-product-result="${idx}">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product.nombre || 'Producto sin nombre')}</strong><small>${cop(product.precio_detal)}</small></span></button>`).join('') + `<button type="button" class="admin-web-product-option admin-web-product-custom" data-product-custom="1"><span class="admin-web-product-no-photo"><i class="fa-solid fa-plus"></i></span><span class="admin-web-product-option-text"><strong>Producto nuevo / personalizado</strong><small>Registrar manualmente</small></span></button>` + (!matches.length ? '<p class="admin-web-product-empty">No se encontraron productos del catálogo.</p>' : '');
+      productResults.innerHTML = matches.map((product, idx) => `<button type="button" class="admin-web-product-option" data-product-result="${idx}">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product.nombre || 'Producto sin nombre')}</strong><small>${cop(orderCatalogPrice(product))}</small></span></button>`).join('') + `<button type="button" class="admin-web-product-option admin-web-product-custom" data-product-custom="1"><span class="admin-web-product-no-photo"><i class="fa-solid fa-plus"></i></span><span class="admin-web-product-option-text"><strong>Producto nuevo / personalizado</strong><small>Registrar manualmente</small></span></button>` + (!matches.length ? '<p class="admin-web-product-empty">No se encontraron productos del catálogo para esta modalidad.</p>' : '');
       productResults.hidden = false;
       productSearch.setAttribute('aria-expanded', 'true');
       productResults.querySelectorAll('[data-product-result]').forEach(button => button.addEventListener('click', () => {
@@ -818,53 +849,66 @@
       setList(datalistIds.talla, sizeOptions);
       setList(datalistIds.color, colorOptions);
       setList(datalistIds.accesorio, accessoryOptions);
+      row._accessoryOptions = accessoryOptions;
+      accessoryRows.replaceChildren();
       customName.classList.add('hidden');
       customName.value = product.nombre || '';
       row.dataset.productName = product.nombre || '';
       row.dataset.productRef = product.referencia || '';
-      [sizeInput, colorInput, accessoryInput].forEach(input => input.value = '');
+      [sizeInput, colorInput].forEach(input => input.value = '');
       manualIncrementInput.value = '0';
       updateProductLinePrice(product);
     };
     productSelect.addEventListener('change', () => {
       if (productSelect.value === '__custom__') {
         customName.classList.remove('hidden'); customName.value = ''; row.dataset.productName = ''; row.dataset.productRef = '';
-        priceInput.value = '0'; productSelected.hidden = true;
+        priceInput.value = '0'; row._variantIncrease = 0; row._accessoryOptions = []; accessoryRows.replaceChildren(); productSelected.hidden = true;
       } else if (!productSelect.value) {
-        customName.classList.add('hidden'); row.dataset.productName = ''; priceInput.value = '0';
+        customName.classList.add('hidden'); row.dataset.productName = ''; priceInput.value = '0'; row._variantIncrease = 0; accessoryRows.replaceChildren();
       } else chooseVariant();
       recalculateWebOrderTotal();
     });
     function updateProductLinePrice(product) {
       if (product) {
-        const variantMap = { talla:normalizeVariantList(product.tallas), color:normalizeVariantList(product.colores), accesorio:normalizeVariantList(product.accesorios) };
+        const variantMap = { talla:normalizeVariantList(product.tallas), color:normalizeVariantList(product.colores) };
         const variantIncrement = Object.entries(variantMap).reduce((total, [key, list]) => {
           const input = row.querySelector(`[data-field="${key}"]`);
           const match = list.find(item => item.nombre.toLowerCase() === String(input?.value || '').trim().toLowerCase());
           return total + Number(match?.incremento || 0);
         }, 0);
-        const manualIncrement = Math.max(0, Number(manualIncrementInput.value || 0));
-        priceInput.value = String(Math.max(0, Number(product.precio_detal || 0) + variantIncrement + manualIncrement));
+        row._variantIncrease = variantIncrement;
+        if (row.dataset.catalogPriceLoaded !== String(product.id)) {
+          priceInput.value = String(orderCatalogPrice(product));
+          row.dataset.catalogPriceLoaded = String(product.id);
+        }
       }
       recalculateWebOrderTotal();
     }
-    [sizeInput, colorInput, accessoryInput].forEach(input => input.addEventListener('change', () => {
+    [sizeInput, colorInput].forEach(input => input.addEventListener('change', () => {
       const product = getCatalogProducts().find(item => String(item.id) === String(productSelect.value));
       updateProductLinePrice(product);
     }));
-    manualIncrementInput.addEventListener('input', () => {
-      const product = getCatalogProducts().find(item => String(item.id) === String(productSelect.value));
-      updateProductLinePrice(product);
-    });
+    manualIncrementInput.addEventListener('input', recalculateWebOrderTotal);
     customName.addEventListener('input', () => { row.dataset.productName = customName.value; });
     row.addEventListener('input', event => { if (event.target.matches('[data-field="precio"],[data-field="cantidad"]')) recalculateWebOrderTotal(); });
+    row._resetForOrderType = () => {
+      productSelect.value = ''; productSearch.value = ''; productSelected.hidden = true; productResults.hidden = true;
+      row.dataset.productName = ''; row.dataset.catalogPriceLoaded = ''; row._variantIncrease = 0;
+      priceInput.value = '0'; sizeInput.value = ''; colorInput.value = ''; accessoryRows.replaceChildren();
+      recalculateWebOrderTotal();
+    };
   }
   window.addWebOrderProductRow = addProductRow;
   window.recalculateWebOrderTotal = function () {
     const total = Array.from(document.querySelectorAll('#web-order-products .admin-web-product-row')).reduce((sum,row) => {
       const price = Number(row.querySelector('[data-field="precio"]')?.value || 0);
       const quantity = Math.max(1, Number(row.querySelector('[data-field="cantidad"]')?.value || 1));
-      return sum + price * quantity;
+      const accessoryTotal = Array.from(row.querySelectorAll('[data-accessory-rows] .admin-order-accessory-row')).reduce((amount,entry) => amount + Math.max(0,Number(entry.querySelector('[data-accessory-increase]')?.value || 0)),0);
+      const manual = Math.max(0,Number(row.querySelector('[data-field="incremento_manual"]')?.value || 0));
+      const unitTotal = price + (row._variantIncrease || 0) + manual + accessoryTotal;
+      const line = row.querySelector('[data-line-total]');
+      if (line) line.textContent = `Unidad: ${cop(unitTotal)} · Subtotal: ${cop(unitTotal * quantity)}`;
+      return sum + unitTotal * quantity;
     },0);
     const input = $('web-order-total'); if (input) input.value = String(total);
     if (typeof window.updateWebOrderBalancePreview === 'function') window.updateWebOrderBalancePreview();
@@ -946,7 +990,7 @@
           <div><label class="admin-web-label">Contacto</label><input id="web-order-contact" class="admin-web-input" placeholder="Teléfono de contacto"></div>
           <div class="sm:col-span-2"><label class="admin-web-label">Ubicación / dirección de entrega</label><input id="web-order-location" class="admin-web-input" placeholder="Dirección, barrio, ciudad"></div>
         </div>
-        <div class="rounded-2xl border border-slate-100 p-3 sm:p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h4 class="font-black text-xs text-slate-800">Productos del pedido</h4><button type="button" onclick="addWebOrderProductRow()" class="admin-web-button"><i class="fa-solid fa-plus mr-1"></i> Añadir producto</button></div><div id="web-order-products" class="space-y-2"></div><p class="text-[10px] text-slate-400">Busca productos del catálogo y selecciona talla, color y accesorios. También puedes registrar un producto manual.</p></div>
+        <div class="rounded-2xl border border-slate-100 p-3 sm:p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h4 class="font-black text-xs text-slate-800">Productos del pedido</h4><button type="button" onclick="addWebOrderProductRow()" class="admin-web-button"><i class="fa-solid fa-plus mr-1"></i> Añadir producto</button></div><div id="web-order-products" class="space-y-2"></div><p class="text-[10px] text-slate-400">El catálogo se filtra según Venta o Alquiler. Puedes modificar el precio base y añadir varios accesorios con aumentos independientes.</p></div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div><label class="admin-web-label">Total productos ($) *</label><input id="web-order-total" class="admin-web-input" type="number" min="0" step="1" value="0" required></div><div><label class="admin-web-label">Domicilio / envío ($)</label><input id="web-order-shipping" class="admin-web-input" type="number" min="0" step="1" value="0"></div><div><label class="admin-web-label">Anticipo ($)</label><input id="web-order-advance" class="admin-web-input" type="number" min="0" step="1" value="0"></div></div>
         <div class="rounded-xl border border-pink-200 bg-pink-50 p-4" aria-live="polite"><div class="flex flex-wrap items-center justify-between gap-2"><span class="text-sm font-black text-slate-700">Restante por pagar (productos + envío − anticipo)</span><strong id="web-order-remaining" class="text-xl font-black text-pink-700">$ 0</strong></div><p id="web-order-balance-detail" class="text-xs text-slate-600 mt-1">Productos: $ 0 + Envío: $ 0 − Anticipo: $ 0</p></div>
         <div><label class="admin-web-label">Fotografías del pedido</label><input id="web-order-images" class="admin-web-input" type="file" accept="image/*" multiple><p class="text-[10px] text-slate-400 mt-1">Puedes adjuntar varias fotos. Se almacenan en el bucket pedidos-web de Supabase.</p></div>
@@ -959,6 +1003,9 @@
     $('web-order-client-results').hidden = true;
     $('web-new-client-panel').querySelectorAll('input').forEach(input => { input.disabled = true; input.required = false; });
     addProductRow();
+    $('web-order-type').addEventListener('change', () => {
+      document.querySelectorAll('#web-order-products .admin-web-product-row').forEach(row => row._resetForOrderType?.());
+    });
     ['web-order-total','web-order-shipping','web-order-advance'].forEach(id => $(id).addEventListener('input', updateWebOrderBalancePreview));
     updateWebOrderBalancePreview();
     $('web-order-client-search').addEventListener('input', event => {
@@ -1115,17 +1162,27 @@
         const catalogProduct = selectedId && selectedId !== '__custom__' ? getCatalogProducts().find(p => String(p.id) === selectedId) : null;
         const customName = val('custom_name');
         const name = catalogProduct?.nombre || customName || row.dataset.productName || '';
-        const accessories = val('accesorio');
+        const accessories = Array.from(row.querySelectorAll('[data-accessory-rows] .admin-order-accessory-row')).map(entry => ({
+          nombre:entry.querySelector('[data-accessory-name]')?.value?.trim() || '',
+          incremento:Math.max(0,Number(entry.querySelector('[data-accessory-increase]')?.value || 0))
+        })).filter(accessory => accessory.nombre || accessory.incremento);
+        const priceBase = Math.max(0,Number(val('precio') || 0));
+        const increaseManual = Math.max(0,Number(val('incremento_manual') || 0));
+        const increaseAccessories = accessories.reduce((sum,item) => sum + item.incremento,0);
+        const unitPrice = priceBase + (row._variantIncrease || 0) + increaseManual + increaseAccessories;
         return {
           producto_id:catalogProduct?.id || null,
           nombre:name,
-          precio:Number(val('precio')||0),
+          precio:unitPrice,
+          precio_base:priceBase,
           cantidad:Number(val('cantidad')||1),
           referencia:val('referencia') || catalogProduct?.referencia || '',
           talla:val('talla'),
           color:val('color'),
-          accesorio:accessories,
-          incremento_manual:Number(val('incremento_manual') || 0),
+          accesorio:accessories.map(a => a.nombre).filter(Boolean).join(', '),
+          accesorios:accessories,
+          incremento_variantes:row._variantIncrease || 0,
+          incremento_manual:increaseManual,
           modalidad:$('web-order-type').value,
           ...(productPhotoUrls[rowIndex] ? { imagen_url:productPhotoUrls[rowIndex] } : (catalogProduct?.fotos?.length ? { imagen_url:catalogProduct.fotos[0] } : {}))
         };

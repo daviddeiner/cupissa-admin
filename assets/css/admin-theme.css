@@ -104,3 +104,17 @@ html.admin-dark{color-scheme:dark;background:#0e0e10!important}
 .admin-dark :is(.admin-web-client-option:hover,.admin-web-product-option:hover){background:#3d2b38!important}
 .admin-dark :is(.admin-web-label,.admin-web-client-edit-grid label){color:#dbcbd5!important}
 .admin-dark .admin-web-client-option small,.admin-dark .admin-web-product-option-text small{color:#ff9bc2!important}
+
+/* Clientes web: las celdas usan un color fijo en admin-web.css. */
+.admin-dark #tab-section-web-clientes .admin-web-table-cell,
+.admin-dark #tab-section-web-clientes #web-clients-tbody td,
+.admin-dark #tab-section-web-clientes #web-clients-tbody td span{color:#f1e7ee!important}
+.admin-dark #tab-section-web-clientes #web-clients-tbody tr{background:#211e23!important}
+.admin-dark #tab-section-web-clientes #web-clients-tbody tr:hover{background:#332a33!important}
+.admin-dark #tab-section-web-clientes #web-clients-tbody td{border-color:#493c47!important}
+.admin-dark #tab-section-web-clientes #web-clients-tbody :is(button,.admin-web-button){background:#593247!important;color:#ffe8f1!important}
+.admin-dark #tab-section-web-clientes :is(h2,h3,th){color:#f6eaf0!important}
+
+/* Líneas de accesorios en el formulario de pedidos. */
+.admin-order-accessory-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(105px,1fr) auto;gap:.55rem;align-items:center}
+@media(max-width:500px){.admin-order-accessory-row{grid-template-columns:minmax(0,1fr) 105px auto;gap:.35rem}}

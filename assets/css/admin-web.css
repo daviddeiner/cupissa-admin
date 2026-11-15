@@ -22,6 +22,75 @@
 .admin-web-delete { width:32px; height:32px; flex:0 0 32px; display:inline-grid; place-items:center; border-radius:9px; background:#fff1f2; color:#e11d48; font-size:11px; transition:background .15s ease,color .15s ease; }
 .admin-web-delete:hover { background:#e11d48; color:#fff; }
 
+/* Pedidos: estado y botón Eliminar siempre juntos y visibles. */
+.admin-order-actions { display:flex; align-items:flex-end; gap:5px; min-width:0; }
+.admin-order-status-field { display:flex; flex:1; flex-direction:column; gap:4px; min-width:0; }
+.admin-order-status-caption { color:#be185d; font-size:9px; font-weight:850; line-height:1.25; overflow-wrap:anywhere; }
+.admin-order-status-field .admin-web-status { width:100%; min-width:0; max-width:100%; }
+
+/* En PC ancha las 13 columnas caben sin desplazamiento horizontal. */
+@media (min-width:1200px) {
+  body:has(#tab-section-web-pedidos:not(.hidden)) main.max-w-7xl {
+    max-width:100%;
+    padding-inline:clamp(12px,1.4vw,28px);
+  }
+  .admin-orders-table-scroll { overflow-x:visible; }
+  .admin-orders-table { min-width:0; width:100%; table-layout:fixed; font-size:clamp(9px,.72vw,11px); line-height:1.4; }
+  .admin-orders-table col:nth-child(1) { width:6%; }
+  .admin-orders-table col:nth-child(2) { width:11%; }
+  .admin-orders-table col:nth-child(3) { width:6%; }
+  .admin-orders-table col:nth-child(4) { width:7%; }
+  .admin-orders-table col:nth-child(5) { width:8%; }
+  .admin-orders-table col:nth-child(6) { width:7%; }
+  .admin-orders-table col:nth-child(7) { width:10%; }
+  .admin-orders-table col:nth-child(8) { width:7%; }
+  .admin-orders-table col:nth-child(9) { width:6%; }
+  .admin-orders-table col:nth-child(10) { width:7%; }
+  .admin-orders-table col:nth-child(11) { width:7%; }
+  .admin-orders-table col:nth-child(12) { width:7%; }
+  .admin-orders-table col:nth-child(13) { width:11%; }
+  .admin-orders-table thead th { padding:10px 4px; white-space:normal; overflow-wrap:anywhere; letter-spacing:0; }
+  .admin-orders-table .admin-web-table-cell { padding:10px 4px; overflow-wrap:anywhere; }
+  .admin-orders-table .admin-web-button { padding:6px 4px; font-size:9px; max-width:100%; }
+  .admin-orders-table .admin-web-status { height:30px; padding:5px 1px; font-size:9px; border-radius:7px; text-overflow:ellipsis; }
+  .admin-orders-table .admin-web-delete { width:27px; height:30px; flex:0 0 27px; border-radius:7px; }
+}
+
+/* En portátiles más estrechos: cada pedido muestra todos sus datos en una
+   tarjeta, sin recortar columnas ni obligar a desplazarse a los lados. */
+@media (min-width:768px) and (max-width:1199px) {
+  .admin-orders-table-scroll { overflow-x:hidden; }
+  .admin-orders-table { display:block; min-width:0; width:100%; }
+  .admin-orders-table colgroup,.admin-orders-table thead { display:none; }
+  .admin-orders-table tbody { display:grid; gap:12px; padding:12px; }
+  .admin-orders-table tbody tr { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px 14px; padding:14px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; }
+  .admin-orders-table tbody td { display:block; min-width:0; padding:0; overflow-wrap:anywhere; font-size:11px; }
+  .admin-orders-table tbody td:not([colspan])::before { display:block; margin-bottom:3px; font-size:9px; font-weight:900; color:#64748b; text-transform:uppercase; }
+  .admin-orders-table tbody td:nth-child(1)::before { content:'Pedido'; }
+  .admin-orders-table tbody td:nth-child(2)::before { content:'Productos'; }
+  .admin-orders-table tbody td:nth-child(3)::before { content:'Venta / alquiler'; }
+  .admin-orders-table tbody td:nth-child(4)::before { content:'Fecha entrega'; }
+  .admin-orders-table tbody td:nth-child(5)::before { content:'Cliente'; }
+  .admin-orders-table tbody td:nth-child(6)::before { content:'Contacto'; }
+  .admin-orders-table tbody td:nth-child(7)::before { content:'Ubicación'; }
+  .admin-orders-table tbody td:nth-child(8)::before { content:'Total'; }
+  .admin-orders-table tbody td:nth-child(9)::before { content:'Envío'; }
+  .admin-orders-table tbody td:nth-child(10)::before { content:'Anticipo'; }
+  .admin-orders-table tbody td:nth-child(11)::before { content:'Restante'; }
+  .admin-orders-table tbody td:nth-child(12)::before { content:'Imágenes'; }
+  .admin-orders-table tbody td:nth-child(13) { grid-column:span 2; }
+  .admin-orders-table tbody td:nth-child(13)::before { content:'Estado / eliminar'; }
+  .admin-orders-table tbody td[colspan] { grid-column:1/-1; text-align:center; }
+  .admin-orders-table tbody td .admin-web-status { max-width:260px; }
+}
+@media (min-width:768px) and (max-width:850px) {
+  .admin-orders-table tbody tr { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+/* La vista móvil conserva su tabla desplazable original. */
+@media (max-width:767px) {
+  .admin-orders-table { min-width:1450px; }
+}
+
 /* Buscador de clientes del agendamiento */
 .admin-web-client-picker { position:relative; }
 .admin-web-client-results { position:relative; margin-top:5px; max-height:240px; overflow-y:auto; border:1px solid #fbcfe8; border-radius:12px; box-shadow:0 8px 20px rgba(80,20,50,.08); background:#fff; z-index:5; }

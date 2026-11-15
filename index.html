@@ -51,7 +51,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 
-    <link rel="stylesheet" href="assets/css/admin-web.css?v=20261109-shipping-remaining-v1">
+    <link rel="stylesheet" href="assets/css/admin-web.css?v=20261115-pedidos-completos-v1">
     <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261112-imagenes-v4">
     <link rel="stylesheet" href="assets/css/admin-app-mobile.css?v=20261112-domicilios-2">
     <style>
@@ -366,7 +366,15 @@
                 <div class="flex-1"><label for="max-orders-per-day" class="block text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Cantidad máxima de pedidos de venta por día</label><div class="flex items-center gap-2"><input id="max-orders-per-day" type="number" min="1" max="500" step="1" value="20" class="w-28 px-3 py-2 rounded-xl border border-slate-200 text-sm font-black"><button id="save-daily-capacity" type="button" onclick="saveDailyCapacity()" class="px-4 py-2 rounded-xl fuchsia-btn text-xs font-black"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar límite</button><strong id="daily-capacity-current" class="text-xs fuchsia-text">20 pedidos por día</strong></div><p id="daily-capacity-note" class="text-[10px] text-slate-400 mt-2">Cuando se complete este número de pedidos de venta para una fecha, el calendario dejará de ofrecerla.</p></div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><input id="web-order-search" oninput="filterWebOrders()" type="search" placeholder="Buscar pedido, cliente o teléfono..." class="w-full sm:max-w-md px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500"></div>
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left text-xs min-w-[1450px]"><thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">PEDIDO</th><th class="p-4">PRODUCTOS</th><th class="p-4">VENTA / ALQUILER</th><th class="p-4">FECHA ENTREGA</th><th class="p-4">CLIENTE</th><th class="p-4">CONTACTO</th><th class="p-4">UBICACIÓN</th><th class="p-4">TOTAL</th><th class="p-4">ENVÍO</th><th class="p-4">ANTICIPO</th><th class="p-4">RESTANTE</th><th class="p-4">IMÁGENES</th><th class="p-4">ESTADO</th></tr></thead><tbody id="web-orders-tbody" class="divide-y divide-slate-100"><tr><td colspan="13" class="p-6 text-center text-slate-400">Cargando pedidos...</td></tr></tbody></table></div></div>
+            <div class="admin-orders-table-container bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="admin-orders-table-scroll overflow-x-auto custom-scrollbar">
+                    <table class="admin-orders-table w-full text-left text-xs">
+                        <colgroup><col><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>
+                        <thead class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100"><tr><th class="p-4">PEDIDO</th><th class="p-4">PRODUCTOS</th><th class="p-4">VENTA / ALQUILER</th><th class="p-4">FECHA ENTREGA</th><th class="p-4">CLIENTE</th><th class="p-4">CONTACTO</th><th class="p-4">UBICACIÓN</th><th class="p-4">TOTAL</th><th class="p-4">ENVÍO</th><th class="p-4">ANTICIPO</th><th class="p-4">RESTANTE</th><th class="p-4">IMÁGENES</th><th class="p-4">ESTADO / ELIMINAR</th></tr></thead>
+                        <tbody id="web-orders-tbody" class="divide-y divide-slate-100"><tr><td colspan="13" class="p-6 text-center text-slate-400">Cargando pedidos...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <section id="tab-section-domicilios" class="hidden space-y-5" aria-label="Administrar domicilios">
@@ -791,12 +799,12 @@
     <script src="assets/js/admin-dialogs.js?v=20261109-toasts-v2"></script>
     <script src="assets/js/admin-rentals.js"></script>
     <script src="assets/js/admin-core.js?v=20261112-products-speed-2"></script>
-    <script src="assets/js/admin-web.js?v=20261113-entrega-2"></script>
-    <script src="assets/js/admin-enhancements.js?v=20261112-products-speed-2"></script>
-    <script src="assets/js/admin-notifications.js?v=20261114-push-image-v2"></script>
+    <script src="assets/js/admin-web.js?v=20261115-pedidos-completos-v1"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261115-clientes-nav-v1"></script>
+    <script src="assets/js/admin-notifications.js?v=20261115-clientes-nav-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
-    <script src="assets/js/admin-domicilios.js?v=20261112-proof-2"></script>
+    <script src="assets/js/admin-domicilios.js?v=20261115-clientes-nav-v1"></script>
 
 
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>

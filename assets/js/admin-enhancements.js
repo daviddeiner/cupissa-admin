@@ -66,10 +66,13 @@
       : normalized === 'catalogo' ? 'tab-section-catalogo' : normalized === 'alquileres' ? 'tab-section-alquileres' : 'tab-section-web-pedidos';
     $(activeSection)?.classList.remove('hidden');
 
-    if (tab === 'web-clientes') window.switchClientSubtab('web');
-    else if (tab === 'creditos') window.switchClientSubtab('creditos');
-    else if (normalized === 'clientes' && !$('tab-section-web-clientes')?.classList.contains('hidden')) {
-      window.switchClientSubtab('web');
+    if (normalized === 'clientes') {
+      // Domicilios y Notificaciones pueden ocultar temporalmente el panel de
+      // clientes. Restaurar SIEMPRE la subpestaña activa al regresar, incluso
+      // si sus dos secciones interiores quedaron ocultas por otro módulo.
+      if (tab === 'web-clientes') activeClientSubtab = 'web';
+      else if (tab === 'creditos') activeClientSubtab = 'creditos';
+      window.switchClientSubtab(activeClientSubtab);
     }
 
     const activeButton = normalized === 'clientes' ? 'creditos' : normalized;

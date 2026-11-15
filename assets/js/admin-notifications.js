@@ -10,8 +10,10 @@
       });
       return previousSwitch?.(tab);
     }
-    // Utilizar la navegación existente; cerrar todas las demás secciones.
-    const other = ['tab-section-clientes','tab-section-creditos','tab-section-web-clientes',
+    // Dejar que la navegación existente cierre Vistas y restaure su estado.
+    // Ocultar el contenedor de Clientes, nunca sus subpestañas interiores.
+    previousSwitch?.('clientes');
+    const other = ['tab-section-clientes',
       'tab-section-catalogo','tab-section-web-pedidos','tab-section-alquileres',
       'tab-section-domicilios','tab-section-vistas'];
     other.forEach(id => document.getElementById(id)?.classList.add('hidden'));

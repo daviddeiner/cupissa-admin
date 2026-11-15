@@ -151,7 +151,8 @@
  window.switchTab=function(tab){
    if(tab==='domicilios'){
       previousSwitch?.('clientes');
-      ['tab-section-clientes','tab-section-creditos','tab-section-catalogo','tab-section-web-pedidos','tab-section-alquileres','tab-section-vistas'].forEach(id=>$(id)?.classList.add('hidden'));
+      // No ocultar Créditos por separado: es una subpestaña de Clientes.
+      ['tab-section-clientes','tab-section-catalogo','tab-section-web-pedidos','tab-section-alquileres','tab-section-vistas'].forEach(id=>$(id)?.classList.add('hidden'));
       $('tab-section-domicilios')?.classList.remove('hidden');
       fetchData();
    }else{ $('tab-section-domicilios')?.classList.add('hidden');previousSwitch?.(tab); }

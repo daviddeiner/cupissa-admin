@@ -6,6 +6,15 @@
   const subtabKey = 'cupissa_admin_last_client_subtab';
   const tabs = new Set(['clientes','catalogo','web-pedidos','alquileres','domicilios','vistas','notificaciones']);
   const $ = id => document.getElementById(id);
+  // Capturar ANTES de DOMContentLoaded: otros módulos llaman switchTab('clientes')
+  // durante su inicio y de otro modo sobrescriben la pestaña anterior.
+  let savedTab = 'clientes', savedSubtab = 'creditos', savedScroll = 0;
+  try {
+    savedTab = localStorage.getItem(tabKey) || savedTab;
+    savedSubtab = localStorage.getItem(subtabKey) || savedSubtab;
+    savedScroll = Number(sessionStorage.getItem('cupissa_admin_last_scroll') || 0);
+  } catch (_) {}
+  let restoring = true;
   function setTheme(dark) {
     document.documentElement.classList.toggle('admin-dark', dark);
     const button = $('admin-theme-toggle');
@@ -49,27 +58,39 @@
     underlyingSwitch?.call(this, tab);
     const normalized = tab === 'creditos' || tab === 'web-clientes' ? 'clientes' : tab;
     if (tabs.has(normalized)) {
-      try { localStorage.setItem(tabKey, normalized); } catch (_) {}
+      if (!restoring) try { localStorage.setItem(tabKey, normalized); } catch (_) {}
       syncNavigation(normalized);
     }
   };
   const underlyingSubtab = window.switchClientSubtab;
   if (underlyingSubtab) window.switchClientSubtab = function(subtab) {
     underlyingSubtab.call(this, subtab);
-    try { localStorage.setItem(subtabKey, subtab === 'web' ? 'web' : 'creditos'); } catch (_) {}
+    if (!restoring) try { localStorage.setItem(subtabKey, subtab === 'web' ? 'web' : 'creditos'); } catch (_) {}
   };
   document.addEventListener('DOMContentLoaded', () => {
-    let dark = false, lastTab = 'clientes', subtab = 'creditos';
+    let dark = false;
     try {
       dark = localStorage.getItem(themeKey) === 'dark';
-      lastTab = localStorage.getItem(tabKey) || 'clientes';
-      subtab = localStorage.getItem(subtabKey) || 'creditos';
     } catch (_) {}
     setTheme(dark);
     $('admin-theme-toggle')?.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('admin-dark')));
-    if (tabs.has(lastTab)) {
-      window.switchTab(lastTab);
-      if (lastTab === 'clientes' && subtab === 'web') window.switchClientSubtab?.('web');
+    if (tabs.has(savedTab)) {
+      window.switchTab(savedTab);
+      if (savedTab === 'clientes') window.switchClientSubtab?.(savedSubtab);
     }
+    restoring = false;
+    try { localStorage.setItem(tabKey, tabs.has(savedTab) ? savedTab : 'clientes'); } catch (_) {}
+    // La carga de productos y pedidos es asíncrona; esperar a que exista el
+    // contenido antes de devolver la posición de lectura.
+    if (savedScroll > 0) {
+      const restoreScroll = () => window.scrollTo({top:savedScroll,behavior:'instant'});
+      window.addEventListener('load', () => {
+        setTimeout(restoreScroll, 350);
+        setTimeout(restoreScroll, 1100);
+      }, {once:true});
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    try { sessionStorage.setItem('cupissa_admin_last_scroll', String(Math.round(window.scrollY))); } catch (_) {}
   });
 })();

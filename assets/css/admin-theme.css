@@ -1,0 +1,26 @@
+/* Tema adaptable CUPISSA Studio; conserva el fucsia de la marca. */
+.admin-theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.42rem .65rem;border-radius:999px;border:1px solid #fbcfe8;background:#fff1f2;color:#9d174d;font-size:11px;font-weight:800;white-space:nowrap;cursor:pointer}
+.admin-theme-toggle:hover{background:#fce7f3}
+#tab-btn-domicilios.bg-pink-50,#tab-btn-notificaciones.bg-pink-50{background:#fdf2f8!important;color:#db2777!important}
+#cupissa-admin-more-menu button.is-active{background:#fdf2f8;color:#db2777;font-weight:800}
+.admin-dark{color-scheme:dark;background:#0b1020!important}
+.admin-dark body{background:#0b1020!important;color:#e2e8f0!important}
+.admin-dark header,.admin-dark .bg-white,.admin-dark [class~="bg-white"],.admin-dark .delivery-create-form,.admin-dark .delivery-content-panel,.admin-dark .admin-web-modal-content{background-color:#182235!important}
+.admin-dark .bg-slate-50,.admin-dark .bg-gray-50,.admin-dark .bg-slate-100,.admin-dark .bg-gray-100{background-color:#202d43!important}
+.admin-dark .bg-pink-50,.admin-dark .bg-rose-50,.admin-dark .bg-pink-100{background-color:#43253e!important}
+.admin-dark .text-slate-900,.admin-dark .text-slate-800,.admin-dark .text-slate-700,.admin-dark .text-gray-900,.admin-dark .text-gray-800,.admin-dark .text-black{color:#f1f5f9!important}
+.admin-dark .text-slate-600,.admin-dark .text-slate-500,.admin-dark .text-slate-400,.admin-dark .text-gray-600,.admin-dark .text-gray-500{color:#b6c4d5!important}
+.admin-dark .border-slate-100,.admin-dark .border-slate-200,.admin-dark .border-gray-100,.admin-dark .border-gray-200{border-color:#334155!important}
+.admin-dark input,.admin-dark textarea,.admin-dark select{background:#101a2d!important;color:#f1f5f9!important;border-color:#475569!important}
+.admin-dark input::placeholder,.admin-dark textarea::placeholder{color:#94a3b8!important}
+.admin-dark table thead,.admin-dark table th{background:#202d43!important;color:#cbd5e1!important}
+.admin-dark table tbody tr{border-color:#334155!important}
+.admin-dark table tbody tr:hover{background:#26344c!important}
+.admin-dark .fuchsia-text,.admin-dark .bg-pink-50.fuchsia-text{color:#f9a8d4!important}
+.admin-dark .fuchsia-btn,.admin-dark .delivery-admin-primary{background:#be185d!important;color:white!important}
+.admin-dark .admin-theme-toggle{background:#38283e;color:#fbcfe8;border-color:#9d174d}
+.admin-dark .admin-client-subtabs,.admin-dark .cupissa-admin-appnav,.admin-dark .cupissa-admin-more-menu{background:#182235!important;color:#e2e8f0!important}
+.admin-dark .admin-client-subtab,.admin-dark .cupissa-admin-more-menu button{color:#cbd5e1}
+.admin-dark .admin-client-subtab.is-active,.admin-dark .cupissa-admin-more-menu button.is-active{background:#43253e!important;color:#f9a8d4!important}
+.admin-dark .delivery-section-head{background:linear-gradient(125deg,#101827,#352038 80%,#572340)}
+.admin-dark #admin-login-screen .bg-white{background:#182235!important}

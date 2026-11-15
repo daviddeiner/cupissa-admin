@@ -287,9 +287,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                 });
 
                 allClients = Array.from(clientMap.values());
-                filteredClients = [...allClients];
-                clientsVisibleCount = clientsPageChunk;
-                renderAdminTable();
+                filterAdminTable();
                 if (!document.getElementById('modal-edit-client')?.classList.contains('hidden')) {
                     const selectedId = document.getElementById('edit-client-id')?.value;
                     if (selectedId) refreshAdminCreditReview(selectedId);
@@ -371,11 +369,14 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         }
 
         function filterAdminTable() {
-            const query = document.getElementById('admin-search-input').value.trim().toLowerCase();
+            const query = (document.getElementById('admin-search-input')?.value || '').trim().toLowerCase();
+            const debtFilter = document.getElementById('admin-credit-debt-filter')?.value || 'con-deuda';
             filteredClients = allClients.filter(c => {
                 const nombre = (c.nombre || '').toLowerCase();
                 const telefono = (c.telefono || '').toLowerCase();
-                return nombre.includes(query) || telefono.includes(query);
+                const hasActiveDebt = (c.creditos || []).some(isActiveCredit);
+                const matchesDebt = debtFilter === 'todos' || (debtFilter === 'con-deuda' ? hasActiveDebt : !hasActiveDebt);
+                return matchesDebt && (nombre.includes(query) || telefono.includes(query));
             });
             clientsVisibleCount = clientsPageChunk;
             renderAdminTable();

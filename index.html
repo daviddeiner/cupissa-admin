@@ -11,8 +11,8 @@
     <link rel="manifest" href="manifest.webmanifest">
     <title>CUPISSA ADMIN</title>
     
-    <link rel="shortcut icon" href="favicon.png" type="image/png">
-    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="shortcut icon" href="favicon.png?v=20261115-transparent" type="image/png">
+    <link rel="icon" href="favicon.png?v=20261115-transparent" type="image/png">
     <link rel="apple-touch-icon" href="admin-icon-192.png">
     
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -56,6 +56,7 @@
     <link rel="stylesheet" href="assets/css/admin-web.css?v=20261115-pedidos-completos-v1">
     <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261112-imagenes-v4">
     <link rel="stylesheet" href="assets/css/admin-app-mobile.css?v=20261112-domicilios-2">
+    <link rel="stylesheet" href="assets/css/admin-theme.css?v=20261115-1">
     <style>
         .fuchsia-btn { background-color: #db2777; color: white; }
         .fuchsia-btn:hover { background-color: #be185d; }
@@ -127,9 +128,12 @@
                 <div class="flex items-center gap-5">
                     <div class="flex flex-col items-start gap-1.5">
                         <img src="logo.png" alt="CUPISSA" class="h-10 sm:h-11 w-auto object-contain">
+                        <div class="flex items-center gap-2">
                         <button id="install-admin-app" type="button" class="admin-install-button">
                             <i class="fa-solid fa-download"></i><span>Descargar aplicación</span>
                         </button>
+                        <button id="admin-theme-toggle" type="button" class="admin-theme-toggle" aria-label="Activar modo oscuro" aria-pressed="false" title="Cambiar modo claro u oscuro"><i class="fa-solid fa-moon"></i><span>Oscuro</span></button>
+                        </div>
                     </div>
                     
                     <nav class="hidden sm:flex space-x-2">
@@ -209,6 +213,13 @@
                     <input type="text" id="admin-search-input" onkeyup="filterAdminTable()" placeholder="Buscar por nombre o teléfono..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 font-medium">
                 </div>
                 
+                <label class="flex items-center gap-2 text-xs font-semibold text-slate-600" for="admin-credit-debt-filter">Mostrar
+                    <select id="admin-credit-debt-filter" onchange="filterAdminTable()" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">
+                        <option value="con-deuda">Clientes con deudas activas</option>
+                        <option value="sin-deuda">Clientes sin deudas</option>
+                        <option value="todos">Todos</option>
+                    </select>
+                </label>
                 <div class="text-xs text-slate-500 font-semibold">
                     Clientes Registrados: <strong id="val-total-clients" class="fuchsia-text font-black">0</strong>
                 </div>
@@ -807,6 +818,7 @@
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
     <script src="assets/js/admin-domicilios.js?v=20261115-clientes-nav-v1"></script>
+    <script src="assets/js/admin-theme-navigation.js?v=20261115-1"></script>
 
 
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>

@@ -178,7 +178,8 @@
     const money = value => '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits:0 }).format(Number(value || 0));
     count('orders-kpi-month-count', monthOrders.length);
     // Todos los indicadores de periodo se calculan exclusivamente con fecha_entrega.
-    count('orders-kpi-today', webOrders.filter(order => deliveryDateKey(order) === today).length);
+    const completedTodayStatuses = new Set(['EN CAMINO', 'EN RUTA', 'ENTREGADO', 'CANCELADO']);
+    count('orders-kpi-today', webOrders.filter(order => deliveryDateKey(order) === today && !completedTodayStatuses.has(normalizeOrderStatus(order.estado))).length);
     count('orders-kpi-transit', webOrders.filter(order => normalizeOrderStatus(order.estado) === 'EN CAMINO').length);
     count('orders-kpi-delivered', monthOrders.filter(order => normalizeOrderStatus(order.estado) === 'ENTREGADO').length);
     // Las ventas suman solo el total de productos; el domicilio no se incluye.

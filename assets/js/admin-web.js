@@ -705,7 +705,8 @@
       existing('envio','domicilio_envio',shipping);existing('contacto','telefono',get('contacto'));
       ['direccion','barrio','ciudad','ubicacion','nota'].forEach(k=>existing(k,null,get(k)));
       existing('tipo_pedido','tipo_servicio',get('tipo'));
-      if(Object.prototype.hasOwnProperty.call(o,'restante'))update.restante=Math.max(0,total+shipping-advance);
+      // restante es una columna GENERATED en PostgreSQL: se recalcula sola
+      // desde total, envio y anticipo. Nunca incluirla en un UPDATE.
       const {data,error}=await db.from('pedidos_web').update(update).eq('id',id).select('id').maybeSingle();
       if(error)throw error;if(!data)throw Error('No se confirmó la actualización. Revisa los permisos de edición.');
       closeAdminWebModal();await loadWebOrders();alert('Pedido actualizado correctamente.');

@@ -213,8 +213,31 @@
     const price = document.createElement('div');
     price.className = 'admin-product-price';
     const formatter = value => '$ ' + new Intl.NumberFormat('es-CO').format(Number(value || 0));
-    price.textContent = `${formatter(product.precio_detal)} · ${Array.isArray(product.fotos) ? product.fotos.length : 0} foto(s)`;
-    main.append(name, meta, price);
+    const priceFields = document.createElement('div');
+    priceFields.className = 'admin-product-quick-prices';
+    [
+      ['precio_detal','PRECIO BASE'],
+      ['precio_mayorista','MAYORISTA']
+    ].forEach(([column,label]) => {
+      const wrap = document.createElement('label');
+      wrap.className = 'admin-product-quick-price';
+      const caption = document.createElement('span');
+      caption.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'number'; input.min = '0'; input.step = '1';
+      input.value = String(Number(product[column]) || 0);
+      input.setAttribute('aria-label',`${label} de ${product.nombre || 'producto'}`);
+      input.title = 'Cambia el valor y presiona Enter o sal del campo para guardar';
+      input.addEventListener('change',async () => {
+        if (typeof window.saveQuickProductPrice !== 'function') return;
+        await window.saveQuickProductPrice(product.id,column,input);
+        input.title = 'Precio actual: ' + formatter(product[column]);
+      });
+      input.addEventListener('keydown',event=>{ if(event.key==='Enter'){event.preventDefault();input.blur();} });
+      wrap.append(caption,input);priceFields.appendChild(wrap);
+    });
+    price.textContent = `${Array.isArray(product.fotos) ? product.fotos.length : 0} foto(s)`;
+    main.append(name, meta, priceFields, price);
 
     const actions = document.createElement('div');
     actions.className = 'admin-product-actions';

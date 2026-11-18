@@ -20,6 +20,11 @@
 .admin-product-name { color:#0f172a; font-size:12px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .admin-product-meta { color:#94a3b8; font-size:10px; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .admin-product-price { color:#475569; font-size:10px; font-weight:800; margin-top:.22rem; }
+.admin-product-quick-prices { display:flex; flex-wrap:wrap; gap:.4rem .65rem; margin-top:.45rem; }
+.admin-product-quick-price { display:flex; align-items:center; gap:.35rem; color:#9d174d; font-weight:900; font-size:9px; letter-spacing:.02em; }
+.admin-product-quick-price input { width:110px; max-width:30vw; min-height:35px; padding:.3rem .45rem; border:1px solid #f9a8d4; border-radius:.6rem; background:#fff; color:#111827; font-size:12px; font-weight:800; }
+.admin-product-quick-price input:focus { outline:2px solid #f4699a; outline-offset:1px; }
+.admin-product-quick-price input:disabled { opacity:.55; }
 .admin-product-actions { display:flex; align-items:center; gap:.35rem; flex:none; }
 .admin-icon-action { width:34px; height:34px; border-radius:.75rem; display:grid; place-items:center; background:#f8fafc; color:#475569; border:1px solid #e2e8f0; }
 .admin-icon-action:hover { background:#fdf2f8; color:#be185d; border-color:#f9a8d4; }
@@ -68,6 +73,9 @@
   .admin-product-row { padding:.8rem .7rem; gap:.55rem; }
   .admin-product-thumb { width:45px; height:50px; }
   .admin-product-name { max-width:45vw; }
+  .admin-product-quick-prices { gap:.3rem; }
+  .admin-product-quick-price { flex-wrap:wrap; }
+  .admin-product-quick-price input { width:96px; max-width:34vw; }
   .admin-icon-action { width:31px; height:31px; }
   .admin-product-filters { width:100%; }
   #admin-product-search-panel { align-items:stretch; }

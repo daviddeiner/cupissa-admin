@@ -131,7 +131,7 @@
         <td class="admin-web-table-cell font-bold">${cop(o.total)}</td><td class="admin-web-table-cell">${cop(o.envio ?? o.domicilio_envio)}</td>
         <td class="admin-web-table-cell">${cop(o.anticipo)}</td><td class="admin-web-table-cell font-black text-pink-700">${cop(rest)}</td>
         <td class="admin-web-table-cell"><button type="button" class="admin-web-button" onclick="viewWebOrder('${esc(o.id)}')"><i class="fa-regular fa-images mr-1"></i> Ver (${photoCount})</button></td>
-        <td class="admin-web-table-cell"><div class="admin-order-actions"><div class="admin-order-status-field"><span class="admin-order-status-caption">${esc(o.estado || 'AGENDADO')}</span><select class="admin-web-status" aria-label="Cambiar estado de pedido" title="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select></div><button type="button" class="admin-web-delete" title="Eliminar pedido" aria-label="Eliminar pedido" onclick="deleteWebOrder('${esc(o.id)}')"><i class="fa-solid fa-trash"></i></button></div></td>
+        <td class="admin-web-table-cell"><div class="admin-order-actions"><div class="admin-order-status-field"><span class="admin-order-status-caption">${esc(o.estado || 'AGENDADO')}</span><select class="admin-web-status" aria-label="Cambiar estado de pedido" title="Cambiar estado de pedido" onchange="changeWebOrderStatus('${esc(o.id)}',this.value)">${statusOptions}</select></div><button type="button" class="admin-web-button" title="Editar pedido" aria-label="Editar pedido" onclick="editWebOrder('${esc(o.id)}')"><i class="fa-solid fa-pen"></i></button><button type="button" class="admin-web-delete" title="Eliminar pedido" aria-label="Eliminar pedido" onclick="deleteWebOrder('${esc(o.id)}')"><i class="fa-solid fa-trash"></i></button></div></td>
       </tr>`;
     }).join('') + (webOrderVisible < filteredWebOrders.length ? `<tr id="web-orders-scroll-sentinel"><td colspan="13" class="p-3 text-center text-xs text-slate-400">Cargando más pedidos al desplazarte…</td></tr>` : '');
     observeAdminList('web-orders-scroll-sentinel', 'orders');
@@ -649,6 +649,69 @@
     root.innerHTML = `<div class="admin-web-modal" id="admin-web-modal"><div class="admin-web-modal-card"><div class="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center gap-3"><h3 class="font-black text-slate-900 text-sm sm:text-base">${esc(title)}</h3><button type="button" onclick="closeAdminWebModal()" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button></div><div class="admin-web-modal-content">${content}</div>${footer?`<div class="p-4 border-t border-slate-100">${footer}</div>`:''}</div></div>`;
   }
   window.closeAdminWebModal = function() { const root=$('admin-web-modal-root'); if(root) root.innerHTML=''; };
+
+  // Edición del pedido sin alterar su flujo de creación, notificaciones o pagos.
+  window.editWebOrder = function(id) {
+    const o=webOrders.find(row=>String(row.id)===String(id)); if (!o) return;
+    const field=(key,label,val,type='text')=>`<label class="block"><span class="admin-web-label">${esc(label)}</span><input class="admin-web-input" data-order-edit="${key}" type="${type}" ${type==='number'?'min="0" step="1"':''} value="${esc(val??'')}"></label>`;
+    const inputs=[
+      field('cliente_nombre','Nombre del cliente en el pedido',o.cliente_nombre||clientName(o._client)),
+      field('contacto','Teléfono de contacto',o.contacto||o.telefono||o._client?.telefono),
+      field('direccion','Dirección de entrega',o.direccion),field('barrio','Barrio',o.barrio),field('ciudad','Ciudad',o.ciudad),
+      field('ubicacion','Ubicación / indicaciones',o.ubicacion),field('fecha_entrega','Fecha de entrega',deliveryDateKey(o),'date'),
+      field('total','Total productos (sin envío)',o.total||0,'number'),field('envio','Envío / domicilio',o.envio??o.domicilio_envio??0,'number'),
+      field('anticipo','Anticipo',o.anticipo||0,'number'),field('nota','Nota del pedido',o.nota||'')
+    ];
+    const options=(arr,selected)=>arr.map(s=>`<option value="${esc(s)}" ${s===selected?'selected':''}>${esc(s)}</option>`).join('');
+    const type=o.tipo_pedido||o.tipo_servicio||'VENTA';
+    const clientButton=o._client?`<button type="button" class="admin-web-button" onclick="viewWebClient('${esc(o._client.id)}')"><i class="fa-solid fa-user-pen mr-1"></i> Editar ficha completa del cliente (nombre, cédula, correo, teléfono y demás)</button>`:'<span class="text-xs text-slate-500">Este pedido no tiene ficha web vinculada.</span>';
+    showAdminWebModal('Editar pedido '+(o.numero_pedido||o.codigo||''),`<form id="edit-web-order-form" onsubmit="saveEditedWebOrder(event,'${esc(id)}')" class="space-y-4">
+      <section class="space-y-2"><h4 class="font-black text-xs">Ficha del cliente</h4>${clientButton}</section>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${inputs.join('')}
+      <label class="block"><span class="admin-web-label">Tipo</span><select class="admin-web-input" data-order-edit="tipo">${options(['VENTA','ALQUILER'],type)}</select></label>
+      <label class="block"><span class="admin-web-label">Estado</span><select class="admin-web-input" data-order-edit="estado">${options([...new Set([o.estado||'AGENDADO',...states])],o.estado||'AGENDADO')}</select></label></div>
+      <p class="text-xs text-slate-500">El domicilio está separado del total de productos y se suma una sola vez al restante.</p>
+      <div class="flex items-center justify-between gap-2"><h4 class="font-black text-xs">Productos del pedido</h4><button type="button" class="admin-web-button" onclick="addEditableOrderProduct()"><i class="fa-solid fa-plus mr-1"></i> Añadir</button></div>
+      <div id="edit-web-order-products" class="space-y-2"></div>
+      <div class="flex justify-end gap-2 border-t pt-4"><button type="button" class="admin-web-button" onclick="closeAdminWebModal()">Cancelar</button><button type="submit" id="save-edited-order" class="fuchsia-btn px-5 py-3 rounded-xl text-xs font-black">Guardar cambios</button></div></form>`);
+    (Array.isArray(o.productos)?o.productos:[]).forEach(p=>window.addEditableOrderProduct(p));
+  };
+
+  window.addEditableOrderProduct = function(p={}) {
+    const root=$('edit-web-order-products');if(!root)return;
+    const row=document.createElement('div');row.className='admin-web-product-row';row._product={...p};
+    const input=(key,label,type='text')=>`<label><span class="admin-web-label">${label}</span><input class="admin-web-input" data-product-edit="${key}" type="${type}" ${type==='number'?'min="0" step="1"':''} value="${esc(p[key]??(key==='cantidad'?1:type==='number'?0:''))}"></label>`;
+    row.innerHTML=`<div class="wide">${input('nombre','Producto')}</div>${input('precio','Precio unitario','number')}${input('cantidad','Cantidad','number')}${input('referencia','Referencia')}${input('talla','Talla')}${input('color','Color')}<button type="button" class="admin-web-delete" title="Quitar" onclick="this.closest('.admin-web-product-row').remove()"><i class="fa-solid fa-trash"></i></button>`;
+    root.appendChild(row);
+  };
+
+  window.saveEditedWebOrder = async function(event,id) {
+    event.preventDefault();const o=webOrders.find(row=>String(row.id)===String(id));if(!o)return;
+    const form=$('edit-web-order-form');const get=key=>form.querySelector(`[data-order-edit="${key}"]`)?.value.trim()||'';
+    const button=$('save-edited-order');button.disabled=true;button.textContent='Guardando…';
+    try {
+      const money=key=>{const str=get(key),n=Number(str);if(str===''||!Number.isFinite(n)||n<0)throw Error('Precio no válido: '+key);return n;};
+      const total=money('total'),shipping=money('envio'),advance=money('anticipo');
+      if(advance>total+shipping)throw Error('El anticipo supera el total más el envío.');
+      if(!get('fecha_entrega'))throw Error('Selecciona una fecha de entrega.');
+      const products=[...form.querySelectorAll('#edit-web-order-products .admin-web-product-row')].map(row=>{
+        const v=key=>row.querySelector(`[data-product-edit="${key}"]`)?.value.trim()||'';
+        const price=Number(v('precio')),qty=Number(v('cantidad'));
+        if(!v('nombre')||!Number.isFinite(price)||price<0||!Number.isInteger(qty)||qty<1)throw Error('Revisa el nombre, precio y cantidad del producto.');
+        return {...row._product,nombre:v('nombre'),precio:price,cantidad:qty,referencia:v('referencia'),talla:v('talla'),color:v('color')};
+      });
+      const update={fecha_entrega:get('fecha_entrega'),cliente_nombre:get('cliente_nombre'),total,anticipo:advance,productos:products,estado:get('estado')};
+      const existing=(key,alt,value)=>{if(Object.prototype.hasOwnProperty.call(o,key))update[key]=value;else if(alt&&Object.prototype.hasOwnProperty.call(o,alt))update[alt]=value;};
+      existing('envio','domicilio_envio',shipping);existing('contacto','telefono',get('contacto'));
+      ['direccion','barrio','ciudad','ubicacion','nota'].forEach(k=>existing(k,null,get(k)));
+      existing('tipo_pedido','tipo_servicio',get('tipo'));
+      if(Object.prototype.hasOwnProperty.call(o,'restante'))update.restante=Math.max(0,total+shipping-advance);
+      const {data,error}=await db.from('pedidos_web').update(update).eq('id',id).select('id').maybeSingle();
+      if(error)throw error;if(!data)throw Error('No se confirmó la actualización. Revisa los permisos de edición.');
+      closeAdminWebModal();await loadWebOrders();alert('Pedido actualizado correctamente.');
+    }catch(error){console.error('No se pudo editar el pedido:',error);alert('No se guardaron los cambios: '+(error.message||error));}
+    finally{button.disabled=false;button.textContent='Guardar cambios';}
+  };
 
   window.viewWebOrder = function(id) {
     const o = webOrders.find(item => String(item.id) === String(id)); if (!o) return;

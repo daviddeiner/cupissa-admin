@@ -1192,8 +1192,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                         <td class="p-3 font-bold">${p.nombre}</td>
                         <td class="p-3 font-bold uppercase fuchsia-text">${productMultiValuesFromRow(p, 'mundo').join(' · ') || '—'}</td>
                         <td class="p-3">${productMultiValuesFromRow(p, 'categoria').join(' · ') || '—'} / <span class="font-bold text-pink-600">${productMultiValuesFromRow(p, 'temporada').join(' · ') || '—'}</span></td>
-                        <td class="p-3 font-black">${formatCOP(p.precio_detal)}</td>
-                        <td class="p-3">${formatCOP(p.precio_mayorista)}</td>
+                        <td class="p-3"><input aria-label="Editar precio base" title="Guarda el nuevo precio al salir del campo" type="number" min="0" step="1" value="${Number(p.precio_detal)||0}" class="w-28 max-w-full rounded-xl border border-pink-200 p-2 font-black" onchange="saveQuickProductPrice('${p.id}','precio_detal',this)"></td>
+                        <td class="p-3"><input aria-label="Editar precio mayorista" title="Guarda el nuevo precio al salir del campo" type="number" min="0" step="1" value="${Number(p.precio_mayorista)||0}" class="w-28 max-w-full rounded-xl border border-pink-200 p-2" onchange="saveQuickProductPrice('${p.id}','precio_mayorista',this)"></td>
                         <td class="p-3 font-bold fuchsia-text">${p.porcentaje_anticipo}%</td>
                         <td class="p-3 text-center space-x-1">
                             <button onclick="openEditProductModal('${p.id}')" class="p-2 bg-pink-50 fuchsia-text rounded-xl font-bold hover:bg-pink-100 transition-colors" title="Editar Producto"><i class="fa-solid fa-pen"></i></button>
@@ -1208,6 +1208,41 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('btn-prev-products').disabled = currentProductsPage === 1;
             document.getElementById('btn-next-products').disabled = endIdx >= filteredProducts.length;
         }
+
+        async function saveQuickProductPrice(id, column, input) {
+            if (!['precio_detal','precio_mayorista'].includes(column)) return;
+            const product = allProducts.find(p => String(p.id) === String(id));
+            if (!product) return;
+            const old = Number(product[column]) || 0;
+            const value = Number(input.value);
+            if (input.value.trim() === '' || !Number.isFinite(value) || value < 0) {
+                input.value = old;
+                alert('Ingresa un precio válido mayor o igual a cero.');
+                return;
+            }
+            input.disabled = true;
+            try {
+                const {data,error} = await supabaseClient.from('productos').update({[column]:value}).eq('id',id).select('id,'+column).maybeSingle();
+                if (error) throw error;
+                if (!data) throw new Error('No se confirmó la actualización. Revisa los permisos.');
+                product[column] = Number(data[column]);
+                const match = filteredProducts.find(p => String(p.id) === String(id));
+                if (match) match[column] = product[column];
+                // El catálogo completo puede superar la cuota del navegador.
+                // El precio ya fue confirmado por Supabase: nunca convertir un
+                // fallo de caché local en un falso error de guardado.
+                try { localStorage.removeItem('cupissa_cache_products'); }
+                catch (cacheError) { console.warn('Caché local no disponible; precio guardado en Supabase.', cacheError); }
+                input.value = product[column];
+                input.style.borderColor = '#16a34a';
+                setTimeout(() => { if (input.isConnected) input.style.borderColor = ''; }, 1500);
+            } catch (error) {
+                input.value = old;
+                console.error('No se pudo guardar el precio:',error);
+                alert('No se pudo guardar el precio: '+(error.message||error));
+            } finally { input.disabled = false; }
+        }
+        window.saveQuickProductPrice = saveQuickProductPrice;
 
         function changeProductsPage(direction) {
             currentProductsPage += direction;

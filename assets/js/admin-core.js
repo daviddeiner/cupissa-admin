@@ -1384,6 +1384,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('chk-venta').checked = true;
             document.getElementById('chk-alquiler').checked = false;
             document.getElementById('chk-credito').checked = false;
+            document.getElementById('chk-pago-contraentrega').checked = false;
+            document.getElementById('chk-produccion-express').checked = false;
 
             document.getElementById('prod-precio-alquiler').value = '0';
             document.getElementById('prod-valor-deposito').value = '0';
@@ -1429,6 +1431,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('chk-venta').checked = !!prod.venta;
             document.getElementById('chk-alquiler').checked = !!prod.alquiler;
             document.getElementById('chk-credito').checked = !!prod.credito;
+            document.getElementById('chk-pago-contraentrega').checked = !!prod.pago_contraentrega;
+            document.getElementById('chk-produccion-express').checked = !!prod.produccion_express;
 
             document.getElementById('prod-precio-alquiler').value = prod.precio_alquiler || 0;
             document.getElementById('prod-valor-deposito').value = prod.valor_deposito || 0;
@@ -1942,6 +1946,8 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     venta: document.getElementById('chk-alquiler').checked ? false : document.getElementById('chk-venta').checked,
                     alquiler: document.getElementById('chk-alquiler').checked,
                     credito: document.getElementById('chk-credito').checked,
+                    pago_contraentrega: document.getElementById('chk-pago-contraentrega').checked,
+                    produccion_express: document.getElementById('chk-produccion-express').checked,
                     precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
                     valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
                     tallas: tempTallas,

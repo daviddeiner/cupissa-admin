@@ -262,7 +262,7 @@
       const button=document.createElement('button');
       button.type='button';button.className='admin-icon-action';
       const paint=()=>{button.style.background=product[field]?'#fce7f3':'';button.style.outline=product[field]?'2px solid #db2777':'';button.title=`${label}: ${product[field]?'ACTIVO':'INACTIVO'}`;button.setAttribute('aria-label',button.title);};
-      button.textContent=emoji;paint();
+      button.textContent=emoji;button.dataset.productFlag=field;paint();
       button.addEventListener('click',async()=>{
         const old=!!product[field];button.disabled=true;
         try{
@@ -320,6 +320,47 @@
   }
 
   window.renderProductsTable = renderProductsInfinite;
+  // Los cambios rápidos deben actualizar solo la tarjeta afectada. Reconstruir
+  // los cientos de productos provoca un salto al comienzo de la lista.
+  function patchVisibleProductCard(product, changedFields = []) {
+    const row=Array.from(document.querySelectorAll('#products-list .admin-product-row'))
+      .find(element=>element.dataset.productId===String(product.id));
+    if(!row)return;
+    if(changedFields.includes('nombre')){
+      const name=row.querySelector('.admin-product-name');
+      if(name)name.textContent=product.nombre||'Producto sin título';
+    }
+    if(changedFields.some(field=>['mundo','categoria','subcategoria','temporada'].includes(field))){
+      const meta=row.querySelector('.admin-product-meta');
+      if(meta)meta.textContent=[product.mundo,product.categoria,product.subcategoria,product.temporada].filter(Boolean).join(' · ')||'Sin clasificación';
+    }
+    if(changedFields.includes('fotos')){
+      const image=row.querySelector('.admin-product-thumb');
+      if(image)image.src=Array.isArray(product.fotos)&&product.fotos[0]?product.fotos[0]:'favicon.png';
+    }
+    for(const field of ['pago_contraentrega','produccion_express']){
+      if(!changedFields.includes(field))continue;
+      const button=row.querySelector(`[data-product-flag="${field}"]`);
+      if(!button)continue;
+      const active=product[field]===true;
+      button.style.background=active?'#fce7f3':'';
+      button.style.outline=active?'2px solid #db2777':'';
+      const label=field==='pago_contraentrega'?'Pago contra entrega':'Producción express';
+      button.title=`${label}: ${active?'ACTIVO':'INACTIVO'}`;
+      button.setAttribute('aria-label',button.title);
+    }
+    if(changedFields.includes('oculto'))row.classList.toggle('is-hidden',isHidden(product));
+    if(changedFields.includes('precio_detal')||changedFields.includes('precio_mayorista')){
+      row.querySelectorAll('.admin-product-quick-price').forEach(wrap=>{
+        const field=wrap.querySelector('span')?.textContent==='PRECIO BASE'?'precio_detal':'precio_mayorista';
+        if(changedFields.includes(field)){
+          const input=wrap.querySelector('input');
+          if(input && document.activeElement!==input)input.value=String(Number(product[field])||0);
+        }
+      });
+    }
+  }
+  window.cupissaPatchVisibleProductCard=patchVisibleProductCard;
   window.filterAdminProductsTable = function (options = {}) {
     const previousVisibleCount = productsVisibleCount;
     const query = ($('admin-search-product-input')?.value || '').trim().toLocaleLowerCase('es');
@@ -361,7 +402,8 @@
       if (!data) throw new Error('Supabase no confirmó el cambio. Comprueba que el producto exista y que RLS permita actualizarlo.');
 
       // No se cambia la copia en memoria como si fuera la base: se vuelve a leer el estado real.
-      await window.fetchProductsData?.({ preserveView: true, force: true });
+      product.oculto=data.oculto;
+      patchVisibleProductCard(product,['oculto']);
       const verb = nextHidden ? 'ocultado' : 'publicado';
       console.info(`Producto ${verb} en Supabase:`, data.id);
     } catch (error) {
@@ -370,7 +412,7 @@
       alert(missingColumn
         ? 'Falta la columna productos.oculto en Supabase. Ejecuta el SQL de configuración de esa columna.'
         : (error?.message || 'No fue posible cambiar la visibilidad del producto.'));
-      await window.fetchProductsData?.({ preserveView: true, force: true });
+      patchVisibleProductCard(product,['oculto']);
     }
   };
 
@@ -385,9 +427,20 @@
     try {
       productsRealtimeChannel = supabaseClient
         .channel('cupissa-admin-productos-live')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, payload => {
           const catalog = $('tab-section-catalogo');
           if (!catalog || catalog.classList.contains('hidden')) return;
+          if(payload.eventType==='UPDATE' && payload.new?.id){
+            const current=(Array.isArray(allProducts)?allProducts:[]).find(item=>String(item.id)===String(payload.new.id));
+            if(current){
+              const changed=Object.keys(payload.new).filter(field=>current[field]!==payload.new[field]);
+              Object.assign(current,payload.new);
+              const filtered=(Array.isArray(filteredProducts)?filteredProducts:[]).find(item=>String(item.id)===String(current.id));
+              if(filtered && filtered!==current)Object.assign(filtered,payload.new);
+              patchVisibleProductCard(current,changed);
+              return; // Nada de recargar ni desplazar el catálogo por una edición.
+            }
+          }
           clearTimeout(productsRefreshTimer);
           productsRefreshTimer = setTimeout(() => window.fetchProductsData?.({ preserveView: true, force: true }), 300);
         })

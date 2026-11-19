@@ -258,6 +258,20 @@
     remove.title = 'Eliminar producto'; remove.setAttribute('aria-label', 'Eliminar producto');
     remove.innerHTML = '<i class="fa-solid fa-trash text-red-600"></i>';
     remove.addEventListener('click', () => window.deleteProduct(product.id));
+    [['pago_contraentrega','💵','Pago contra entrega'],['produccion_express','⚡','Producción express']].forEach(([field,emoji,label])=>{
+      const button=document.createElement('button');
+      button.type='button';button.className='admin-icon-action';
+      const paint=()=>{button.style.background=product[field]?'#fce7f3':'';button.style.outline=product[field]?'2px solid #db2777':'';button.title=`${label}: ${product[field]?'ACTIVO':'INACTIVO'}`;button.setAttribute('aria-label',button.title);};
+      button.textContent=emoji;paint();
+      button.addEventListener('click',async()=>{
+        const old=!!product[field];button.disabled=true;
+        try{
+          const {data,error}=await supabaseClient.from('productos').update({[field]:!old}).eq('id',product.id).select(`id,${field}`).maybeSingle();
+          if(error)throw error;if(!data)throw Error('Supabase no confirmó el cambio.');
+          product[field]=!!data[field];paint();
+        }catch(error){alert(`No se pudo actualizar ${label}: ${error.message}`);}finally{button.disabled=false;}
+      });actions.append(button);
+    });
     actions.append(edit, visibility, remove);
     row.append(image, main, actions);
     return row;

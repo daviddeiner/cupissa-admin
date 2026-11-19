@@ -735,7 +735,11 @@
         photoPanel.appendChild(pasteHelp);
       }
     }
-    if (modePanel.parentNode !== step1) step1.appendChild(modePanel);
+    // Las opciones de publicar fotos/colores juntos o por separado pertenecen
+    // al segundo paso (variaciones), no al bloque inicial de fotografías.
+    if (modePanel.parentNode !== step2 || modePanel.previousElementSibling !== colors) {
+      colors.after(modePanel);
+    }
 
     // El formulario de colores ahora admite su propia fotografía.
     const colorPhotoArea = document.createElement('div');

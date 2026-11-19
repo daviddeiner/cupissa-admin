@@ -831,9 +831,9 @@ async function createWebPayment(db: any, body: any) {
   let longestPreparation = 0;
   const expressRequested = body.express === true;
   const totalUnitsByProduct = new Map<string,number>();
-  for(const item of items){if(String(item.modalidad||'VENTA').toUpperCase()!=='ALQUILER'){
+  for(const item of items){
     const id=String(item.productId);totalUnitsByProduct.set(id,(totalUnitsByProduct.get(id)||0)+Number(item.cantidad||1));
-  }}
+  }
   if(expressRequested && (!items.some((item:any)=>String(item.modalidad||'VENTA').toUpperCase()!=='ALQUILER') ||
     !items.filter((item:any)=>String(item.modalidad||'VENTA').toUpperCase()!=='ALQUILER').every((item:any)=>productMap.get(String(item.productId))?.produccion_express===true))){
     return json({error:'Uno de los productos no está habilitado para producción express.'},400);
@@ -945,7 +945,7 @@ async function createWebPayment(db: any, body: any) {
       Math.min(100, Number(product.porcentaje_anticipo || 20))
     );
 
-    const codEligible = !rental && product.pago_contraentrega===true &&
+    const codEligible = product.pago_contraentrega===true &&
       (totalUnitsByProduct.get(String(product.id))||0)<6 &&
       (totalUnitsByProduct.get(String(product.id))||0)<Math.max(1,Number(product.cant_min_mayorista||6));
     const lineAdvance = codEligible ? 0 : Math.round(lineTotal * percentage / 100);
@@ -1182,7 +1182,7 @@ async function createWebPayment(db: any, body: any) {
     );
   }
 
-  if(paymentMode==='cod' && (advance!==0 || rentalLines.length>0 || saleLines.length===0 || referralDiscount ||
+  if(paymentMode==='cod' && (advance!==0 || (rentalLines.length===0 && saleLines.length===0) || referralDiscount ||
     !items.every((item:any)=>{
       const product=productMap.get(String(item.productId));
       const quantity=totalUnitsByProduct.get(String(item.productId))||0;

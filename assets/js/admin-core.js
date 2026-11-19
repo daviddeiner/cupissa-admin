@@ -1964,8 +1964,16 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                         fotos: allGalleryPhotos.length > 0 ? allGalleryPhotos : [defaultImage],
                         fotos_originales: allGalleryOriginals.length > 0 ? allGalleryOriginals : [defaultImage]
                     };
-                    const { error } = await supabaseClient.from('productos').update(singleData).eq('id', editId);
+                    const { data: savedProduct, error } = await supabaseClient.from('productos').update(singleData).eq('id', editId).select('*').single();
                     if (error) throw error;
+                    const current = allProducts.find(item => String(item.id) === String(editId));
+                    if (current && savedProduct) {
+                        const changed = Object.keys(savedProduct).filter(field => current[field] !== savedProduct[field]);
+                        Object.assign(current, savedProduct);
+                        const filtered = filteredProducts.find(item => String(item.id) === String(editId));
+                        if (filtered && filtered !== current) Object.assign(filtered, savedProduct);
+                        window.cupissaPatchVisibleProductCard?.(current, changed);
+                    }
                 } else {
                     const photosCount = galleryPhotoEntries.length;
                     if (photosCount > 1 && selectedPublishMode === null) {
@@ -2011,7 +2019,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     (savedProductCount > 1 ? `${savedProductCount} productos publicados correctamente.` : 'Producto publicado correctamente.'), 'success');
                 // El guardado ya fue confirmado por Supabase. La actualización del listado
                 // sigue de forma independiente para no retrasar el mensaje ni bloquear el formulario.
-                void fetchProductsData({ preserveView: true, revealCount: savedProductCount, force: true })
+                if (!editId) void fetchProductsData({ preserveView: true, revealCount: savedProductCount, force: true })
                     .catch(error => {
                         console.warn('Producto guardado, pero no pudo actualizarse el listado:', error);
                         window.cupissaToast?.('Producto guardado. No se pudo actualizar el listado; recarga la sección de productos.', 'warning', 8500);

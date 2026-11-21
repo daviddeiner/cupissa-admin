@@ -48,7 +48,7 @@ async function deliver(message: { to: string; subject: string; html: string; tex
 async function getOrderEmail(source: 'pedidos' | 'pedidos_web', record: Record<string, unknown>) {
   // Los pedidos_web del administrador guardan cliente_id, no correo_cliente.
   // Resolver contra clientes_web evita marcar un correo válido como ausente.
-  let email = String(record.correo_cliente || '').trim();
+  let email = String(record.correo_cliente || record.email || record.correo || '').trim();
   let name = String(record.nombre_cliente || record.cliente_nombre || 'Cliente CUPISSA').trim();
   if (source !== 'pedidos_web') return { email, name };
 
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
     if (String(order.estado || '').trim().toUpperCase() !== 'ENTREGADO')
       return Response.json({ok:false,error:'El pedido todavía no está marcado ENTREGADO.'},{status:409,headers:cors});
     const {email,name} = await getOrderEmail('pedidos_web',order);
-    if (!validEmail(email)) return Response.json({ok:true,skipped:true,reason:'Este pedido no tiene correo de cliente asociado.'},{headers:cors});
+    if (!validEmail(email)) return Response.json({ok:true,skipped:true,reason:'No se encontró una dirección vinculada a este pedido en CUPISSA; no se ha comprobado la existencia del buzón.'},{headers:cors});
     const number = String(order.numero_pedido || order.codigo || order.id);
     const subject = `CUPISSA | ¡Tu pedido ${number} fue entregado!`;
     const html = emailLayout({

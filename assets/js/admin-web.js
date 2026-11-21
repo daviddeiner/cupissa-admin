@@ -192,13 +192,13 @@
     const q = ($('web-order-search')?.value || '').trim().toLowerCase();
     const month = $('web-order-month')?.value || '';
     const day = $('web-order-day')?.value || '';
-    const state = normalizeOrderStatus($('web-order-status-filter')?.value || '');
+    const selectedStates = new Set([...document.querySelectorAll('#web-order-status-filter input[type=checkbox]:checked')].map(input => normalizeOrderStatus(input.value)));
     webOrderVisible = ADMIN_WEB_CHUNK;
     filteredWebOrders = webOrders.filter(order => {
       const date = deliveryDateKey(order);
       if (month && date.slice(0, 7) !== month) return false;
       if (day && date !== day) return false;
-      if (state && normalizeOrderStatus(order.estado) !== state) return false;
+      if (!selectedStates.has(normalizeOrderStatus(order.estado || 'AGENDADO'))) return false;
       return !q || [order.numero_pedido,order.codigo,order.tipo_pedido,order.fecha_entrega,order.contacto,order.ubicacion,order.cliente_nombre,order._client?.nombres,order._client?.apellidos,order._client?.telefono]
         .some(value => String(value || '').toLowerCase().includes(q));
     });
@@ -210,7 +210,7 @@
   function clearWebOrderFilters() {
     const month = $('web-order-month'); if (month) month.value = bogotaDateKey().slice(0, 7);
     const day = $('web-order-day'); if (day) day.value = '';
-    const state = $('web-order-status-filter'); if (state) state.value = '';
+    document.querySelectorAll('#web-order-status-filter input[type=checkbox]').forEach(input => { input.checked = !['ENTREGADO','CANCELADO'].includes(normalizeOrderStatus(input.value)); });
     const search = $('web-order-search'); if (search) search.value = '';
     filterWebOrders();
   }

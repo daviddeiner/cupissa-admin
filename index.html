@@ -55,7 +55,7 @@
 
 
     <link rel="stylesheet" href="assets/css/admin-web.css?v=20261115-pedidos-completos-v1">
-    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261118-precios-tarjetas-v2">
+    <link rel="stylesheet" href="assets/css/admin-enhancements.css?v=20261121-resenas-1">
     <link rel="stylesheet" href="assets/css/admin-app-mobile.css?v=20261112-domicilios-2">
     <link rel="stylesheet" href="assets/css/admin-theme.css?v=20261115-4">
     <style>
@@ -149,6 +149,7 @@
                         <button onclick="switchTab('domicilios')" id="tab-btn-domicilios" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-motorcycle mr-1"></i> Domicilios</button>
                         <button onclick="switchTab('vistas')" id="tab-btn-vistas" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-eye mr-1.5"></i> Vistas</button>
                         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-1.5"></i> Pedidos</button>
+                        <button onclick="switchTab('resenas')" id="tab-btn-resenas" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-star mr-1.5"></i> Reseñas</button>
                         <button onclick="switchTab('notificaciones')" id="tab-btn-notificaciones" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100"><i class="fa-regular fa-bell mr-1.5"></i> Notificaciones</button>
                     </nav>
                 </div>
@@ -171,7 +172,7 @@
         <button onclick="switchTab('alquileres')" id="tab-btn-alquileres-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Alquileres</button>
         <button onclick="switchTab('vistas')" id="tab-btn-vistas-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600"><i class="fa-solid fa-eye mr-1"></i> Vistas</button>
         <button onclick="switchTab('web-pedidos')" id="tab-btn-web-pedidos-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Pedidos</button>
-        <button onclick="switchTab('notificaciones')" id="tab-btn-notificaciones-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Avisos</button>
+        <button onclick="switchTab('resenas')" id="tab-btn-resenas-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Reseñas</button><button onclick="switchTab('notificaciones')" id="tab-btn-notificaciones-mob" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-600">Avisos</button>
     </div>
 
     <nav class="cupissa-admin-appnav" aria-label="Navegación móvil de administrador">
@@ -181,7 +182,7 @@
       <button type="button" data-app-tab="domicilios" onclick="switchTab('domicilios')"><i class="fa-solid fa-motorcycle"></i><span>Domicilios</span></button>
       <button type="button" id="cupissa-admin-more"><i class="fa-solid fa-ellipsis"></i><span>Más</span></button>
     </nav>
-    <div id="cupissa-admin-more-menu" class="hidden cupissa-admin-more-menu"><button onclick="switchTab('vistas')">Visitas</button><button onclick="switchTab('alquileres')">Alquileres</button><button onclick="switchTab('web-clientes')">Clientes web</button><button onclick="switchTab('notificaciones')">Notificaciones</button></div>
+    <div id="cupissa-admin-more-menu" class="hidden cupissa-admin-more-menu"><button onclick="switchTab('vistas')">Visitas</button><button onclick="switchTab('alquileres')">Alquileres</button><button onclick="switchTab('web-clientes')">Clientes web</button><button onclick="switchTab('notificaciones')">Notificaciones</button><button onclick="switchTab('resenas')">Reseñas</button></div>
 
     <!-- MAIN CONTAINER -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -371,7 +372,14 @@
                 <div class="admin-orders-filters">
                     <label><span>FILTRAR MES</span><input id="web-order-month" type="month" onchange="filterWebOrders()"></label>
                     <label><span>FILTRAR DÍA</span><input id="web-order-day" type="date" onchange="filterWebOrders()"></label>
-                    <label><span>FILTRAR ESTADO</span><select id="web-order-status-filter" onchange="filterWebOrders()"><option value="">Todos los estados</option><option value="AGENDADO">Agendado</option><option value="EN FABRICACIÓN">En fabricación</option><option value="EN DEPARTAMENTO DE DESPACHO">En departamento de despacho</option><option value="EN CAMINO">En camino</option><option value="ENTREGADO">Entregado</option><option value="CANCELADO">Cancelado</option></select></label>
+                    <div class="admin-order-state-filter"><span>FILTRAR ESTADOS (SELECCIÓN MÚLTIPLE)</span><div class="admin-order-status-checks" id="web-order-status-filter" role="group" aria-label="Filtrar por estados de pedido">
+<label><input type="checkbox" value="AGENDADO" checked onchange="filterWebOrders()"> Agendado</label>
+<label><input type="checkbox" value="EN FABRICACIÓN" checked onchange="filterWebOrders()"> En fabricación</label>
+<label><input type="checkbox" value="EN DEPARTAMENTO DE DESPACHO" checked onchange="filterWebOrders()"> En departamento de despacho</label>
+<label><input type="checkbox" value="EN CAMINO" checked onchange="filterWebOrders()"> En camino</label>
+<label><input type="checkbox" value="ENTREGADO" onchange="filterWebOrders()"> Entregado</label>
+<label><input type="checkbox" value="CANCELADO" onchange="filterWebOrders()"> Cancelado</label>
+</div></div>
                     <button type="button" onclick="clearWebOrderFilters()" class="admin-orders-clear"><i class="fa-solid fa-rotate-left mr-1"></i> Limpiar</button>
                     <p class="admin-orders-filter-note">El filtro de día utiliza la fecha de creación del pedido. Los valores de ventas y cobro excluyen pedidos cancelados.</p>
                 </div>
@@ -391,6 +399,14 @@
             </div>
         </section>
 
+        <section id="tab-section-resenas" class="hidden space-y-5" aria-label="Administración de reseñas">
+  <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 sm:p-7">
+    <div class="flex flex-wrap gap-3 justify-between items-center"><div><h2 class="text-xl font-black text-slate-900"><i class="fa-solid fa-star fuchsia-text mr-2"></i>Reseñas de clientes</h2><p class="text-xs text-slate-500 mt-2">Comentarios más recientes primero. Ocultar una reseña la excluye de la tienda y de su calificación, pero conserva el registro original.</p></div><button type="button" class="admin-web-button" onclick="cupissaLoadReviews()"><i class="fa-solid fa-rotate mr-1"></i> Actualizar</button></div>
+    <div class="admin-review-filters"><label class="text-xs font-bold">Calificación <select id="admin-review-stars" onchange="cupissaFilterReviews()"><option value="">Todas las estrellas</option><option value="1">1 estrella</option><option value="2">2 estrellas</option><option value="3">3 estrellas</option><option value="4">4 estrellas</option><option value="5">5 estrellas</option></select></label><label class="text-xs font-bold">Visibilidad <select id="admin-review-visibility" onchange="cupissaFilterReviews()"><option value="">Todas</option><option value="visible">Visibles</option><option value="hidden">Ocultas</option></select></label><label class="text-xs font-bold">Buscar <input type="search" id="admin-review-search" oninput="cupissaFilterReviews()" placeholder="Producto, cliente o comentario"></label></div>
+    <p id="admin-review-status" role="status" class="text-xs text-slate-600 mt-4">Abre esta sección para cargar las reseñas.</p><div id="admin-review-list" class="admin-review-list"></div>
+    <button id="admin-review-more" type="button" class="admin-web-button hidden" onclick="cupissaMoreReviews()">Ver más reseñas</button>
+  </div>
+</section>
         <section id="tab-section-domicilios" class="hidden space-y-5" aria-label="Administrar domicilios">
             <div class="delivery-section-head"><div><p class="delivery-eyebrow">OPERACIONES · CUPISSA</p><h2><i class="fa-solid fa-motorcycle"></i> Domicilios</h2><p>Asigna los pedidos del departamento de despacho y consulta las entregas.</p></div><div class="flex flex-wrap gap-2"><button type="button" id="domicilios-refresh" class="delivery-admin-secondary"><i class="fa-solid fa-rotate"></i> Actualizar</button><button type="button" class="delivery-admin-primary" onclick="cupissaAbrirCrearDomiciliario()"><i class="fa-solid fa-user-plus"></i> Crear domiciliario</button></div></div>
             <form id="domiciliario-create-form" class="hidden delivery-create-form" onsubmit="cupissaCrearDomiciliario(event)"><h3>Nuevo domiciliario</h3><div class="delivery-create-grid"><label>Nombres<input name="nombres" required minlength="2" autocomplete="off" placeholder="Nombres"></label><label>Apellidos<input name="apellidos" required minlength="2" autocomplete="off" placeholder="Apellidos"></label><label>Celular<input name="telefono" required type="tel" inputmode="tel" placeholder="3001234567"></label><label>Contraseña asignada<input name="password" required type="password" minlength="10" autocomplete="new-password" placeholder="Mínimo 10 caracteres"></label></div><p class="text-xs text-slate-500">Las credenciales se crean exclusivamente para el portal del domiciliario, sin acceso a CUPISSA ADMIN.</p><button class="delivery-admin-primary" type="submit">Crear cuenta de domiciliario</button></form>
@@ -815,13 +831,14 @@
     <script src="assets/js/admin-dialogs.js?v=20261109-toasts-v2"></script>
     <script src="assets/js/admin-rentals.js"></script>
     <script src="assets/js/admin-core.js?v=20261119-sin-saltos-1"></script>
-    <script src="assets/js/admin-web.js?v=20261118-restante-generado-v4"></script>
+    <script src="assets/js/admin-web.js?v=20261121-multi-estado"></script>
     <script src="assets/js/admin-enhancements.js?v=20261119-pasos-publicacion-1"></script>
     <script src="assets/js/admin-notifications.js?v=20261115-clientes-nav-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
     <script src="assets/js/admin-domicilios.js?v=20261115-clientes-nav-v1"></script>
     <script src="assets/js/admin-theme-navigation.js?v=20261115-3"></script>
+    <script src="assets/js/admin-reviews.js?v=20261121"></script>
 
 
     <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>

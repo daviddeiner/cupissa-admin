@@ -33,7 +33,7 @@ function emailLayout(name:string,number:string,date:string) {
 
 type Order = Record<string,unknown>;
 async function getRecipient(order:Order) {
-  let email = String(order.correo_cliente || order.email || '').trim();
+  let email = String(order.correo_cliente || order.email || order.correo || '').trim();
   let name = String(order.cliente_nombre || order.nombre_cliente || 'Cliente CUPISSA').trim();
   const accept = (c:Order|null) => {
     if (!c || !validEmail(c.correo)) return false;
@@ -86,7 +86,7 @@ async function processToday(date:string) {
       if (excluded(order.estado)) {result.skipped++;continue;}
       const id = String(order.id);
       const {email,name} = await getRecipient(order);
-      if (!validEmail(email)) {result.skipped++;console.warn('Sin correo válido:',id);continue;}
+      if (!validEmail(email)) {result.skipped++;result.errors.push(`${id}: EMAIL_NO_ASOCIADO (no se intentó enviar; revisar datos del cliente/pedido)`);console.warn('Correo no asociado al pedido:',id);continue;}
       const {data:claimed,error:claimError} = await db.rpc('cupissa_reservar_aviso_entrega',{
         p_pedido_id:id,p_fecha_entrega:date,p_correo:email,
       });

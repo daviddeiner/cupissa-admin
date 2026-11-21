@@ -1313,7 +1313,7 @@
       } catch (emailError) {
         const reason = String(emailError?.message || emailError || 'Error desconocido').slice(0, 350);
         console.error('Pedido guardado, pero el correo no fue confirmado:', emailError);
-        mailWarning = ` El pedido quedó registrado, pero el correo no se confirmó: ${reason}. No vuelvas a registrar el pedido.`;
+        mailWarning = ` El pedido quedó registrado, pero el servidor no confirmó la entrega del correo: ${reason}. Esto no significa que el cliente no exista. No vuelvas a registrar el pedido.`;
       }
       closeAdminWebModal(); await loadWebOrders(); await loadWebClients();
       alert((mailWarning ? 'Pedido guardado.' + mailWarning : 'Pedido registrado y correo de confirmación enviado correctamente.') + authInviteWarning);

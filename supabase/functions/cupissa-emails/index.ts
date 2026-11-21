@@ -48,7 +48,7 @@ async function deliver(message: { to: string; subject: string; html: string; tex
 async function getOrderEmail(source: 'pedidos' | 'pedidos_web', record: Record<string, unknown>) {
   // Los pedidos_web del administrador guardan cliente_id, no correo_cliente.
   // Resolver contra clientes_web evita marcar un correo válido como ausente.
-  let email = String(record.correo_cliente || '').trim();
+  let email = String(record.correo_cliente || record.email || record.correo || '').trim();
   let name = String(record.nombre_cliente || record.cliente_nombre || 'Cliente CUPISSA').trim();
   if (source !== 'pedidos_web') return { email, name };
 
@@ -148,7 +148,7 @@ async function sendOrderConfirmation(payload: Record<string, unknown>) {
   const source = payload.source === 'pedidos' ? 'pedidos' : 'pedidos_web';
   const record = (payload.record && typeof payload.record === 'object' ? payload.record : {}) as Record<string, unknown>;
   const { email, name } = await getOrderEmail(source, record);
-  if (!validEmail(email)) return { ok: true, skipped: true, reason: 'El pedido no tiene un correo válido asociado.' };
+  if (!validEmail(email)) return { ok: true, skipped: true, reason: 'No se encontró una dirección vinculada al pedido; no se ha comprobado la existencia del buzón de destino.' };
   const number = String(record.numero_pedido || record.id || '—');
   const date = String(record.fecha_entrega || record.fecha_pedido || record.created_at || 'Por confirmar');
   const total = source === 'pedidos' ? record.total_pedido : record.total;
@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
       });
       if (result?.skipped) return Response.json({
         ok:false, code:'CUSTOMER_EMAIL_NOT_RESOLVED',
-        error:'No se encontró el correo del cliente en clientes_web para este pedido.',
+        error:'No se pudo identificar el correo vinculado a este pedido. Esto no significa que el buzón no exista.',
         result
       }, { status:422, headers:cors });
     } else {

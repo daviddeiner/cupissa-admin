@@ -1,0 +1,12 @@
+CUPISSA — Corrección focalizada de correos — 21/11/2026
+
+El Portal y Perfil YA utilizan CUPISSAAuth.sendEmailLoginOtp / verifyEmailLoginOtp, que emplean Supabase Auth; comparten plantilla configurada en Authentication.
+Se ajustaron los mensajes de errores de rebote en el Portal, la limpieza del campo OTP y la versión del script (evita caché antigua).
+En el administrador se precisa la diferencia entre una dirección no vinculada al pedido y un rechazo del proveedor de correo.
+Se añade un respaldo para campos email/correo en las Edge Functions incluidas, sin cambiar diseño de plantillas, credenciales ni método de envío.
+
+IMPORTANTE: subir el ZIP del administrador a GitHub NO actualiza automáticamente las funciones desplegadas en Supabase. Si se quieren aplicar las modificaciones de index.ts, desplegar individualmente cupissa-emails, cupissa-pedido-entregado y cupissa-recordatorio-entrega con el flujo habitual.
+
+Cuando un proveedor devuelve «address not found», «550 5.1.1» u otro rebote permanente, ninguna edición del frontend puede forzar la entrega. Revisar las respuestas/logs reales del servicio CUPISSA_MAILER_URL y la configuración SMTP de Supabase Auth. No desactivar verificación de titularidad de correos ni inventar destinos.
+
+No se ha modificado Supabase en producción ni probado envíos reales.

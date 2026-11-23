@@ -749,9 +749,11 @@
     }
   };
 
+  const orderCatalogExtra = new Map();
   function getCatalogProducts() {
-    try { return typeof allProducts !== 'undefined' && Array.isArray(allProducts) ? allProducts : []; }
-    catch (_) { return []; }
+    let local=[];
+    try { local=typeof allProducts !== 'undefined' && Array.isArray(allProducts) ? allProducts : []; } catch (_) {}
+    return [...orderCatalogExtra.values(), ...local.filter(p=>!orderCatalogExtra.has(String(p.id)))];
   }
   function normalizeVariantList(items) {
     return (Array.isArray(items) ? items : []).map(item => typeof item === 'string'
@@ -760,13 +762,13 @@
       .filter(item => item.nombre);
   }
   function orderCatalogProductAllowed(product) {
-    if (!product || product.oculto === true || product.oculto === 'true') return false;
+    if (!product) return false; // También permite localizar productos ocultos desde el panel interno.
     const rent = $('web-order-type')?.value === 'ALQUILER';
     return rent ? (product.alquiler === true || product.alquiler === 'true')
       : product.venta !== false && product.venta !== 'false';
   }
   function orderCatalogPrice(product) {
-    return Math.max(0, Number(($('web-order-type')?.value === 'ALQUILER' ? product?.precio_alquiler : product?.precio_detal) || 0));
+    return Math.max(0, Number(($('web-order-type')?.value === 'ALQUILER' ? (Number(product?.precio_alquiler || 0) + Number(product?.valor_deposito || 0)) : product?.precio_detal) || 0));
   }
   let orderProductRowCounter = 0;
   function addProductRow() {
@@ -866,25 +868,44 @@
         productSelected.hidden = false;
       }
     };
-    const renderProductResults = () => {
-      const query = normalizeSearch(productSearch.value.trim());
-      const catalog = getCatalogProducts().filter(orderCatalogProductAllowed);
-      const matches = catalog.filter(item => !query || normalizeSearch(item.nombre).includes(query)).slice(0, 70);
-      productResults.innerHTML = matches.map((product, idx) => `<button type="button" class="admin-web-product-option" data-product-result="${idx}">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product.nombre || 'Producto sin nombre')}</strong><small>${cop(orderCatalogPrice(product))}</small></span></button>`).join('') + `<button type="button" class="admin-web-product-option admin-web-product-custom" data-product-custom="1"><span class="admin-web-product-no-photo"><i class="fa-solid fa-plus"></i></span><span class="admin-web-product-option-text"><strong>Producto nuevo / personalizado</strong><small>Registrar manualmente</small></span></button>` + (!matches.length ? '<p class="admin-web-product-empty">No se encontraron productos del catálogo para esta modalidad.</p>' : '');
-      productResults.hidden = false;
-      productSearch.setAttribute('aria-expanded', 'true');
-      productResults.querySelectorAll('[data-product-result]').forEach(button => button.addEventListener('click', () => {
-        const product = matches[Number(button.dataset.productResult)];
-        if (product) setProductSelection(product.id, product.nombre || 'Producto');
-      }));
-      productResults.querySelector('[data-product-custom]')?.addEventListener('click', () => setProductSelection('__custom__', 'Producto nuevo / personalizado'));
-    };
-    productSearch.addEventListener('focus', renderProductResults);
-    productSearch.addEventListener('input', () => {
-      productSelect.value = '';
-      productSelected.hidden = true;
-      row.dataset.productName = '';
-      renderProductResults();
+    // Consulta el catálogo COMPLETO en el servidor, no solamente allProducts en memoria.
+    // Supabase impone límites de respuesta: paginación + búsqueda permiten acceder a
+    // cualquier producto aunque existan millones, sin bloquear el navegador.
+    let productSearchSeq=0, productSearchTimer=null;
+    async function renderProductResults(page=0) {
+      const seq=++productSearchSeq;
+      const query=productSearch.value.trim();
+      const limit=100;
+      productResults.hidden=false; productSearch.setAttribute('aria-expanded','true');
+      productResults.innerHTML='<p class="admin-web-product-empty">Buscando en todo el catálogo…</p>';
+      try {
+        let request=db.from('productos').select('*').order('id',{ascending:true}).range(page*limit,(page+1)*limit-1);
+        // El filtro se ejecuta en la base de datos y alcanza también registros aún no cargados.
+        if(query) request=request.ilike('nombre',`%${query.replace(/[%_,()]/g,' ').trim()}%`);
+        if($('web-order-type')?.value==='ALQUILER') request=request.eq('alquiler',true);
+        const {data,error}=await request;
+        if(error)throw error;
+        if(seq!==productSearchSeq || !row.isConnected)return;
+        const matches=(data||[]).filter(orderCatalogProductAllowed);
+        matches.forEach(product=>orderCatalogExtra.set(String(product.id),product));
+        productResults.innerHTML=matches.map((product,idx)=>`<button type="button" class="admin-web-product-option" data-product-result="${idx}">${thumb(product)}<span class="admin-web-product-option-text"><strong>${esc(product.nombre||'Producto sin nombre')}</strong><small>${cop(orderCatalogPrice(product))}</small></span></button>`).join('')+
+          `<button type="button" class="admin-web-product-option admin-web-product-custom" data-product-custom="1"><span class="admin-web-product-no-photo"><i class="fa-solid fa-plus"></i></span><span class="admin-web-product-option-text"><strong>Producto nuevo / personalizado</strong><small>Registrar manualmente</small></span></button>`+
+          (data?.length===limit?`<button type="button" class="admin-web-product-option" data-product-next="1"><strong>Mostrar 100 productos más</strong></button>`:'')+
+          (!matches.length?'<p class="admin-web-product-empty">No hay coincidencias en esta página.</p>':'');
+        productResults.querySelectorAll('[data-product-result]').forEach(button=>button.addEventListener('click',()=>{
+          const product=matches[Number(button.dataset.productResult)];
+          if(product)setProductSelection(product.id,product.nombre||'Producto');
+        }));
+        productResults.querySelector('[data-product-custom]')?.addEventListener('click',()=>setProductSelection('__custom__','Producto nuevo / personalizado'));
+        productResults.querySelector('[data-product-next]')?.addEventListener('click',()=>renderProductResults(page+1));
+      } catch(error) {
+        if(seq===productSearchSeq) productResults.innerHTML=`<p class="admin-web-product-empty">No se pudo consultar todo el catálogo: ${esc(error.message||error)}</p>`;
+      }
+    }
+    productSearch.addEventListener('focus',()=>renderProductResults(0));
+    productSearch.addEventListener('input',()=>{
+      productSelect.value='';productSelected.hidden=true;row.dataset.productName='';
+      clearTimeout(productSearchTimer);productSearchTimer=setTimeout(()=>renderProductResults(0),250);
     });
     productSearch.addEventListener('keydown', event => {
       if (event.key === 'Escape') { productResults.hidden = true; productSearch.setAttribute('aria-expanded', 'false'); }
@@ -941,7 +962,7 @@
           const match = list.find(item => item.nombre.toLowerCase() === String(input?.value || '').trim().toLowerCase());
           return total + Number(match?.incremento || 0);
         }, 0);
-        row._variantIncrease = variantIncrement;
+        row._variantIncrease = $('web-order-type')?.value === 'ALQUILER' ? 0 : variantIncrement;
         if (row.dataset.catalogPriceLoaded !== String(product.id)) {
           priceInput.value = String(orderCatalogPrice(product));
           row.dataset.catalogPriceLoaded = String(product.id);
@@ -970,7 +991,7 @@
       const quantity = Math.max(1, Number(row.querySelector('[data-field="cantidad"]')?.value || 1));
       const accessoryTotal = Array.from(row.querySelectorAll('[data-accessory-rows] .admin-order-accessory-row')).reduce((amount,entry) => amount + Math.max(0,Number(entry.querySelector('[data-accessory-increase]')?.value || 0)),0);
       const manual = Math.max(0,Number(row.querySelector('[data-field="incremento_manual"]')?.value || 0));
-      const unitTotal = price + (row._variantIncrease || 0) + manual + accessoryTotal;
+      const unitTotal = price + ($('web-order-type')?.value === 'ALQUILER' ? 0 : (row._variantIncrease || 0)) + manual + accessoryTotal;
       const line = row.querySelector('[data-line-total]');
       if (line) line.textContent = `Unidad: ${cop(unitTotal)} · Subtotal: ${cop(unitTotal * quantity)}`;
       return sum + unitTotal * quantity;
@@ -1234,7 +1255,8 @@
         const priceBase = Math.max(0,Number(val('precio') || 0));
         const increaseManual = Math.max(0,Number(val('incremento_manual') || 0));
         const increaseAccessories = accessories.reduce((sum,item) => sum + item.incremento,0);
-        const unitPrice = priceBase + (row._variantIncrease || 0) + increaseManual + increaseAccessories;
+        const variantIncrease = $('web-order-type')?.value === 'ALQUILER' ? 0 : (row._variantIncrease || 0);
+        const unitPrice = priceBase + variantIncrease + increaseManual + increaseAccessories;
         return {
           producto_id:catalogProduct?.id || null,
           nombre:name,
@@ -1246,7 +1268,7 @@
           color:val('color'),
           accesorio:accessories.map(a => a.nombre).filter(Boolean).join(', '),
           accesorios:accessories,
-          incremento_variantes:row._variantIncrease || 0,
+          incremento_variantes:variantIncrease,
           incremento_manual:increaseManual,
           modalidad:$('web-order-type').value,
           ...(productPhotoUrls[rowIndex] ? { imagen_url:productPhotoUrls[rowIndex] } : (catalogProduct?.fotos?.length ? { imagen_url:catalogProduct.fotos[0] } : {}))
@@ -1324,6 +1346,22 @@
   };
 
   window.cupissaLoadWebOrders = loadWebOrders;
+  // Comprobación cada segundo de pedidos nuevos o modificados. No descarga toda la
+  // tabla cada segundo: solo solicita la carga completa cuando cambia la huella.
+  let orderPollRunning=false, orderPollSignature=null;
+  setInterval(async()=>{
+    if(orderPollRunning||!adminReady()||document.hidden||!$('tab-section-web-pedidos')||$('tab-section-web-pedidos').classList.contains('hidden'))return;
+    orderPollRunning=true;
+    try {
+      const {data,error}=await db.from('pedidos_web').select('id,created_at,estado,total,anticipo,fecha_entrega').order('created_at',{ascending:false}).limit(50);
+      if(error)throw error;
+      const signature=JSON.stringify(data||[]);
+      if(orderPollSignature!==null && signature!==orderPollSignature) {
+        if (!$('admin-web-modal')) { await loadWebOrders(); orderPollSignature=signature; }
+      } else orderPollSignature=signature;
+    }catch(error){console.warn('[CUPISSA] Sondeo de pedidos:',error.message||error);}
+    finally{orderPollRunning=false;}
+  },1000);
   window.changeWebOrderStatus = async function(id, status) {
     if (!states.includes(status)) return;
     const previousStatus = webOrders.find(o=>String(o.id)===String(id))?.estado;

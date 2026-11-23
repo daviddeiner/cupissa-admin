@@ -6,7 +6,7 @@
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&quot;'}[c]));
  const money=v=>'$ '+new Intl.NumberFormat('es-CO').format(Number(v||0));
  const previousSwitch=window.switchTab;
- let couriers=[],assignments=[],pending=[],currentTab='clientes',loading=false;
+ let couriers=[],assignments=[],pending=[],pickups=[],deliveredRentals=[],activeOrders=[],currentTab='clientes',loading=false;
  function status(message,error=false){const el=$('domicilios-status');if(el){el.textContent=message;el.classList.toggle('text-rose-700',error);}}
  async function request(action,body={}){
    if(!db) throw new Error('No existe una conexión activa con Supabase.');
@@ -26,7 +26,7 @@
      if(response && typeof response.clone==='function'){
        try{
          const payload=await response.clone().json();
-         detail=String(payload?.error||payload?.message||payload?.detail||'');
+         detail=typeof payload?.error==='string'?payload.error:(payload?.error?.message||payload?.message||payload?.detail||JSON.stringify(payload?.error||payload||{}));
          if(payload?.code)detail+=` [${payload.code}]`;
        }catch(_){
          try{detail=String(await response.clone().text()).slice(0,350);}catch(_){}
@@ -39,22 +39,39 @@
      if(!detail || /non-2xx/i.test(detail))detail='La función rechazó la solicitud. Comprueba su despliegue y autenticación en Supabase.';
      throw new Error([statusCode,detail].filter(Boolean).join(' — '));
    }
-   if(!data?.ok)throw new Error(data?.error||'No se confirmó la operación de domicilios.');
+   if(!data?.ok)throw new Error(typeof data?.error==='string'?data.error:(data?.error?.message||JSON.stringify(data?.error||{})||'No se confirmó la operación de domicilios.'));
    return data;
  }
  function photo(o){const p=Array.isArray(o.productos)?o.productos[0]:null;
    return p?.imagen_url||p?.imagenes?.[0]||o.imagenes?.[0]||'';
  }
+ async function fetchAllFiltered(table,field,value,order='created_at') {
+   const rows=[];let offset=0;
+   while(true){
+     let query=db.from(table).select('*');
+     if(field)query=query.eq(field,value);
+     if(order)query=query.order(order,{ascending:false});
+     const {data,error}=await query.range(offset,offset+999);
+     if(error)throw error;
+     rows.push(...(data||[]));
+     if((data||[]).length<1000)break;
+     offset+=1000;
+   }
+   return {data:rows,error:null};
+ }
  async function fetchData(){
    if(loading||!db)return;loading=true;status('Consultando pedidos de despacho…');
    try{
-     const [c,d,orders]=await Promise.all([
+     const [c,d,orders,rentals,collection,active]=await Promise.all([
        db.from('cupissa_domiciliarios').select('id,nombres,apellidos,telefono,activo').order('creado_en',{ascending:false}).limit(500),
        db.from('cupissa_domicilios').select('pedido_id,domiciliario_id,entregado_en,foto_path,firma_path').order('asignado_en',{ascending:false}).limit(1000),
-       db.from('pedidos_web').select('*').eq('estado','EN DEPARTAMENTO DE DESPACHO').order('fecha_entrega',{ascending:true}).limit(1000)
+       db.from('pedidos_web').select('*').eq('estado','EN DEPARTAMENTO DE DESPACHO').order('fecha_entrega',{ascending:true}).limit(1000),
+       fetchAllFiltered('pedidos_web','estado','ENTREGADO'),
+       fetchAllFiltered('cupissa_recogidas_alquiler',null,null,'creado_en'),
+       db.from('pedidos_web').select('*').eq('estado','EN CAMINO').limit(1000)
      ]);
-     if(c.error)throw c.error;if(d.error)throw d.error;if(orders.error)throw orders.error;
-     couriers=c.data||[];assignments=d.data||[];pending=orders.data||[];render();
+     if(c.error)throw c.error;if(d.error)throw d.error;if(orders.error)throw orders.error;if(rentals.error)throw rentals.error;if(collection.error)throw collection.error;if(active.error)throw active.error;
+     couriers=c.data||[];assignments=d.data||[];pending=orders.data||[];pickups=collection.data||[];activeOrders=active.data||[];deliveredRentals=(rentals.data||[]).filter(o=>String(o.tipo_pedido||o.tipo_servicio||'').toUpperCase()==='ALQUILER'||(Array.isArray(o.productos)&&o.productos.some(p=>String(p.modalidad||'').toUpperCase()==='ALQUILER'))).filter(o=>!pickups.some(p=>String(p.pedido_id)===String(o.id)&&p.recogido_en));render();
      status(`${pending.length} pedido(s) por asignar · ${couriers.filter(c=>c.activo).length} domiciliario(s) activo(s).`);
    }catch(error){status('No se pudieron consultar los domicilios. Ejecuta el SQL e instala la Edge Function cupissa-domicilios. '+(error.message||error),true);}
    finally{loading=false;}
@@ -70,11 +87,30 @@
     root.querySelectorAll('[data-assign-btn]').forEach(button=>button.addEventListener('click',()=>assignOrder(button.dataset.assignBtn,button)));
    }
    if(assigned){
-     const recentlyAssigned=assignments.filter(d=>!d.entregado_en).slice(0,100);
+     const recentlyAssigned=assignments.filter(d=>!d.entregado_en && activeOrders.some(o=>String(o.id)===String(d.pedido_id))).slice(0,100);
      assigned.innerHTML=recentlyAssigned.map(d=>{
        const c=couriers.find(x=>x.id===d.domiciliario_id);
-       return `<div class="delivery-assigned-row"><strong>Pedido ${esc(d.pedido_id)}</strong><span>${esc(c?c.nombres+' '+c.apellidos:'Domiciliario')}</span><span class="text-pink-700 font-bold">EN CAMINO</span></div>`;
+       const o=activeOrders.find(x=>String(x.id)===String(d.pedido_id))||{};
+       const src=photo(o), remaining=Math.max(0,Number(o.total||0)+Number(o.envio??o.domicilio_envio??0)-Number(o.anticipo||0));
+       return `<div class="delivery-admin-card"><div class="flex gap-3"><div class="delivery-admin-photo">${src?`<img loading="lazy" src="${esc(src)}" alt="Producto">`:'<i class="fa-solid fa-box"></i>'}</div><div><strong>Pedido ${esc(o.numero_pedido||d.pedido_id)}</strong><p class="text-xs">${esc(c?c.nombres+' '+c.apellidos:'Domiciliario')} · EN CAMINO</p><strong class="text-pink-700">Por cobrar: ${money(remaining)}</strong></div></div></div>`;
      }).join('')||'<p class="text-xs text-slate-500">Sin repartos en camino.</p>';
+   }
+   const pickupRoot=$('domicilios-recogidas');
+   if(pickupRoot){
+     const choices=couriers.filter(c=>c.activo).map(c=>`<option value="${esc(c.id)}">${esc(c.nombres+' '+c.apellidos)}</option>`).join('');
+     pickupRoot.innerHTML=deliveredRentals.map(o=>{
+       const registered=pickups.find(p=>String(p.pedido_id)===String(o.id));
+       const src=photo(o), courier=couriers.find(c=>c.id===registered?.domiciliario_id);
+       return `<article class="delivery-admin-card"><div class="flex gap-3"><div class="delivery-admin-photo">${src?`<img src="${esc(src)}" loading="lazy" alt="Producto de alquiler">`:'<i class="fa-solid fa-box"></i>'}</div><div><strong>${esc(o.numero_pedido||o.id)}</strong><p class="text-xs">${esc(o.cliente_nombre||'Cliente CUPISSA')}</p><p class="text-xs text-pink-700 font-bold">${courier?'RECOGIDA · '+esc(courier.nombres+' '+courier.apellidos):'POR ASIGNAR RECOGIDA'}</p></div></div><div class="flex gap-2 mt-3"><select class="delivery-admin-select" data-pickup-select="${esc(o.id)}"><option value="">Selecciona domiciliario</option>${couriers.filter(c=>c.activo).map(c=>`<option value="${esc(c.id)}" ${registered?.domiciliario_id===c.id?'selected':''}>${esc(c.nombres+' '+c.apellidos)}</option>`).join('')}</select><button type="button" class="delivery-admin-primary" data-pickup-assign="${esc(o.id)}">${registered?'Reasignar':'Asignar recogida'}</button></div></article>`;
+     }).join('')||'<p class="text-xs text-slate-500">No hay alquileres entregados pendientes de recogida.</p>';
+     pickupRoot.querySelectorAll('[data-pickup-assign]').forEach(button=>button.addEventListener('click',async()=>{
+       const id=button.dataset.pickupAssign,courier=pickupRoot.querySelector(`[data-pickup-select="${CSS.escape(id)}"]`)?.value;
+       if(!courier)return alert('Selecciona un domiciliario.');
+       button.disabled=true;
+       try{await request('assign_pickup',{pedido_id:id,domiciliario_id:courier});await fetchData();}
+       catch(error){alert('No se pudo asignar la recogida: '+error.message);button.disabled=false;}
+     }));
+
    }
  }
  async function assignOrder(id,button){

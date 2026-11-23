@@ -1,0 +1,32 @@
+CUPISSA — CAMBIOS DE PEDIDOS Y RECOGIDAS (23-11-2026)
+
+1. Subir los archivos actualizados del ZIP cupissa-admin al repositorio cupissa-admin.
+2. Subir los archivos actualizados del ZIP cupissa-domiciliarios al repositorio cupissa-domiciliarios.
+3. En Supabase > SQL Editor, ejecutar el SQL nuevo:
+   cupissa-admin/supabase/04_RECOGIDAS_ALQUILER_20261123.sql
+4. En Supabase > Edge Functions > cupissa-domicilios,
+   desplegar la NUEVA función index.ts incluida en CUALQUIERA de los ZIP:
+   - cupissa-admin/supabase/functions/cupissa-domicilios/index.ts
+   - cupissa-domiciliarios/edge-functions/cupissa-domicilios/index.ts
+   Es la misma función en ambos ZIP. Un despliegue es suficiente.
+5. Actualizar la web/admin y la app de domiciliarios (se modificaron las versiones JS).
+
+FUNCIONALIDAD
+- Búsqueda por nombre en toda la tabla productos; 100 resultados por página.
+  "Mostrar 100 productos más" recupera las páginas siguientes. No se cargan
+  millones de productos simultáneamente porque bloquearía el navegador.
+- ALQUILER: el precio base se llena con precio_alquiler + valor_deposito.
+  La selección de talla o color no aplica incrementos de variante en alquiler.
+  El precio sigue siendo editable, y los accesorios se cobran aparte.
+- Recogidas: aparecen alquileres con pedidos_web.estado=ENTREGADO y sin recogido_en.
+  El administrador asigna; el domiciliario confirma sin foto ni firma.
+  Se elimina automáticamente de las recogidas pendientes cuando se confirma.
+  El estado público pedidos_web.estado permanece ENTREGADO.
+- En camino: foto y saldo por cobrar.
+- Pedidos: sondeo cada segundo con una consulta pequeña de los 50 pedidos más
+  recientes; se actualiza la tabla completa si se detectan cambios.
+
+IMPORTANTE: Los ZIP no incluyen la carpeta .git. Copiar los archivos a cada
+repositorio existente sin borrar .git, luego hacer commit y push.
+La funcionalidad de recogidas NO se activará solo con subir HTML y JS:
+son obligatorios el SQL y el despliegue de la Edge Function.

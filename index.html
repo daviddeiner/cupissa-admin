@@ -412,6 +412,7 @@
             <form id="domiciliario-create-form" class="hidden delivery-create-form" onsubmit="cupissaCrearDomiciliario(event)"><h3>Nuevo domiciliario</h3><div class="delivery-create-grid"><label>Nombres<input name="nombres" required minlength="2" autocomplete="off" placeholder="Nombres"></label><label>Apellidos<input name="apellidos" required minlength="2" autocomplete="off" placeholder="Apellidos"></label><label>Celular<input name="telefono" required type="tel" inputmode="tel" placeholder="3001234567"></label><label>Contraseña asignada<input name="password" required type="password" minlength="10" autocomplete="new-password" placeholder="Mínimo 10 caracteres"></label></div><p class="text-xs text-slate-500">Las credenciales se crean exclusivamente para el portal del domiciliario, sin acceso a CUPISSA ADMIN.</p><button class="delivery-admin-primary" type="submit">Crear cuenta de domiciliario</button></form>
             <p id="domicilios-status" role="status" class="text-xs text-slate-600">Abre esta sección para consultar los despachos.</p>
             <div class="delivery-columns"><section class="delivery-content-panel"><h3><i class="fa-solid fa-box-open"></i> Por asignar</h3><div id="domicilios-pendientes" class="delivery-cards"><p class="text-sm text-slate-500">Cargando…</p></div></section><section class="delivery-content-panel"><h3><i class="fa-solid fa-route"></i> En camino</h3><div id="domicilios-en-camino" class="delivery-assigned"><p class="text-sm text-slate-500">Cargando…</p></div></section></div>
+            <section class="delivery-content-panel"><h3><i class="fa-solid fa-rotate-left"></i> Recogidas pendientes · alquileres entregados</h3><p class="text-xs text-slate-500 mb-3">Gestión interna: el cliente seguirá viendo ENTREGADO. No requiere fotografía ni firma.</p><div id="domicilios-recogidas" class="delivery-cards">Cargando…</div></section>
         </section>
 
         <div id="admin-web-modal-root"></div>
@@ -831,12 +832,12 @@
     <script src="assets/js/admin-dialogs.js?v=20261109-toasts-v2"></script>
     <script src="assets/js/admin-rentals.js"></script>
     <script src="assets/js/admin-core.js?v=20261119-sin-saltos-1"></script>
-    <script src="assets/js/admin-web.js?v=20261121-multi-estado"></script>
+    <script src="assets/js/admin-web.js?v=20261123-pedidos-alquiler-recogidas"></script>
     <script src="assets/js/admin-enhancements.js?v=20261119-pasos-publicacion-1"></script>
     <script src="assets/js/admin-notifications.js?v=20261115-clientes-nav-v1"></script>
     <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
     <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
-    <script src="assets/js/admin-domicilios.js?v=20261115-clientes-nav-v1"></script>
+    <script src="assets/js/admin-domicilios.js?v=20261123-recogidas"></script>
     <script src="assets/js/admin-theme-navigation.js?v=20261115-3"></script>
     <script src="assets/js/admin-reviews.js?v=20261121"></script>
 

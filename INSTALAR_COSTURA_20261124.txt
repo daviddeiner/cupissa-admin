@@ -1,0 +1,6 @@
+1. Ejecutar 05_COSTURA_CUPISSA.sql en Supabase SQL Editor (una vez; está también en el ZIP admin).
+2. Crear repositorio costura-cupissa y subir el contenido de esta carpeta a su raíz. Activar GitHub Pages desde main / root. No contiene CNAME para no asumir un dominio.
+3. Acceder con la cuenta administrativa existente, o crear un usuario confirmado en Authentication y autorizarlo con la sentencia opcional al final del SQL. No compartir la contraseña del administrador.
+4. Fecha inicial: hoy en Colombia; filtro por fecha de entrega, Todos muestra toda la cola. Sin filtro por fecha de creación. Actualización cada 15 segundos.
+5. Probar un pedido de prueba: AGENDADO con entrega a más de 3 días, otro dentro de 3 días, y marcar uno como fabricado. Verificar en admin y despacho. El SQL también promueve agendados vencidos para no perderlos.
+6. El cambio automático es de servidor (pg_cron cada minuto); requiere que Supabase esté activo. No requiere Edge Function nueva. No se ha ejecutado contra la base de producción.

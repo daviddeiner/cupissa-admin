@@ -1349,6 +1349,12 @@
   // Comprobación cada segundo de pedidos nuevos o modificados. No descarga toda la
   // tabla cada segundo: solo solicita la carga completa cuando cambia la huella.
   let orderPollRunning=false, orderPollSignature=null;
+  // Reconciliación periódica de todos los pedidos, incluidos los antiguos enviados a despacho desde Costura.
+  setInterval(async()=>{
+    if(orderPollRunning||!adminReady()||document.hidden||!$('tab-section-web-pedidos')||$('tab-section-web-pedidos').classList.contains('hidden')||$('admin-web-modal'))return;
+    orderPollRunning=true;
+    try { await loadWebOrders(); } finally { orderPollRunning=false; }
+  },30000);
   setInterval(async()=>{
     if(orderPollRunning||!adminReady()||document.hidden||!$('tab-section-web-pedidos')||$('tab-section-web-pedidos').classList.contains('hidden'))return;
     orderPollRunning=true;
@@ -1365,9 +1371,9 @@
   window.changeWebOrderStatus = async function(id, status) {
     if (!states.includes(status)) return;
     const previousStatus = webOrders.find(o=>String(o.id)===String(id))?.estado;
-    const { error } = await db.from('pedidos_web').update({ estado:status }).eq('id',id);
+    const { data: savedStatus, error } = await db.from('pedidos_web').update({ estado:status }).eq('id',id).select('estado').single();
     if (error) { console.error(error); alert('No fue posible actualizar el estado del pedido.'); await loadWebOrders(); return; }
-    const order = webOrders.find(o=>String(o.id)===String(id)); if(order) order.estado=status;
+    const order = webOrders.find(o=>String(o.id)===String(id)); if(order) order.estado=savedStatus.estado;
     filterWebOrders();
     if (status === 'ENTREGADO' && normalizeOrderStatus(previousStatus) !== 'ENTREGADO') {
       try {

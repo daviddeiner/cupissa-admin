@@ -1,0 +1,46 @@
+CUPISSA | INSTALACIÓN DEL PORTAL ASESORES
+========================================
+
+1. En Supabase, haz una copia de seguridad o utiliza un entorno de prueba.
+   SQL Editor > New query: abre supabase/06_ASESORES_CUPISSA.sql, copia su contenido completo y ejecútalo una sola vez. No es necesario volver a ejecutar los SQL antiguos incluidos en este ZIP.
+   La migración usa los nombres de tablas y campos observados en tu admin. Si tu tabla asesores tiene columnas antiguas obligatorias sin valor predeterminado, puede requerir un ajuste de esas columnas al crear un asesor; no borres las columnas existentes.
+
+2. Authentication > Providers: conserva Email habilitado. Phone puede permanecer desactivado. No requiere SMS. El teléfono se transforma internamente en un alias de correo; la contraseña se valida en Supabase Auth.
+
+3. Edge Functions: crea y despliega cupissa-asesores con el contenido de supabase/functions/cupissa-asesores/index.ts. Conserva la verificación de identidad; la función valida el JWT y el correo administrativo en el servidor. No coloques la clave service_role en el navegador. Supabase proporciona las variables SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY a la función.
+
+4. Actualiza la función existente cupissa-emails con supabase/functions/cupissa-emails/index.ts (versión que conserva las acciones del ZIP original y añade la confirmación de pedidos de asesores). Conserva todos los secretos que ya utiliza esta función. Si tu Edge desplegada tiene cambios posteriores al ZIP enviado, integra únicamente la rama advisor_order_confirmation en vez de sobrescribirlos.
+
+5. Actualiza tu repositorio cupissa-admin con el contenido de la carpeta cupissa-admin, respetando tu carpeta .git existente. Los cambios de frontend están en index.html y assets/js/admin-web.js. En PowerShell, desde el repositorio:
+   git add .; git commit -m "Agregar asesores"; git push
+
+6. Crea un repositorio nuevo llamado asesores-cupissa. Copia el contenido de la carpeta asesores-cupissa del segundo ZIP en la raíz del repositorio. Publica GitHub Pages desde la rama main y carpeta raíz. Si quieres un subdominio propio, configura el DNS y el dominio personalizado en GitHub Pages. No se incluyó CNAME porque no se especificó dominio definitivo.
+
+7. En el admin, entra a Pedidos > Crear asesor. Escribe el nombre, teléfono colombiano y contraseña de al menos ocho caracteres. Después, en la nueva web, selecciona Asesor e inicia sesión con teléfono y contraseña. El administrador puede usar su correo y contraseña habituales en la nueva web, sin las restricciones de fecha.
+
+7a. Si ya creaste asesores con la versión anterior, entra a Pedidos > Crear asesor y pulsa Habilitar acceso de asesores existentes una vez. Conserva sus UUID y contraseñas.
+
+8. Pruebas antes de usar con clientes reales:
+   - Comprueba un asesor y un segundo asesor, ambos sin acceso al admin.
+   - Verifica un correo de prueba ya existente: edita dirección, guarda el pedido y revisa la ficha en admin.
+   - Prueba cliente nuevo, venta, alquiler con depósito, fotografía por línea y producto personalizado.
+   - Configura temporalmente un límite diario de 2; crea un pedido con cada asesor en la misma fecha; verifica que el día desaparezca para ambos. El administrador debe poder registrar otro pedido. Restaura luego el límite original.
+   - En Pedidos, filtra un asesor y un mes. Para alquiler de $40.000 + depósito de $10.000 y venta de $100.000, sin incluir envío, la comisión debe ser $28.000.
+   - Comprueba las funciones anteriores (clientes, pedidos, domicilios, costura y tienda pública) tras ejecutar la migración.
+
+CRITERIOS
+- Capacidad: pedidos de asesores, ventas y alquileres juntos, por fecha de entrega, excluidos los cancelados; los pedidos creados por admin no ocupan este cupo.
+- Anticipación: dos días calendario, zona America/Bogota. La lista de fechas se consulta por mes y no muestra días sin disponibilidad.
+- Comisión: mes de entrega, 20% del total de productos sin depósito ni envío, excluidos cancelados. El pedido personalizado es una línea del pedido y no publica un producto nuevo en el catálogo.
+- Alquiler: precio de alquiler + depósito + incrementos manuales y accesorios, sin incrementos de talla/color. El depósito de catálogo se verifica en el servidor y se registra aparte. Para un producto personalizado se escribe el depósito aparte.
+- Datos del cliente: se verifica correo en clientes_web, se actualizan sus datos de ficha con el pedido dentro de una misma transacción. Si se quiere cambiar un correo existente, debe gestionarse en el perfil/admin, no desde la búsqueda de asesores.
+- Catálogo: consulta en servidor, páginas de 100 y búsqueda sobre todo el catálogo. No hay tope global de productos accesibles.
+- Seguridad: la nueva sesión se separa de la sesión del admin; las funciones SQL comprueban rol y las políticas restringen el acceso directo de las cuentas de asesor a las tablas internas conocidas. Las políticas/RPC adicionales existentes que no figuren en el ZIP deben revisarse en el proyecto real.
+- Se conserva el bucket pedidos-web ya usado en el administrador. Las fotografías deben ser JPG, PNG, WEBP o GIF de hasta 10 MB. Se usan las URLs existentes de catálogo cuando no se adjunta otra imagen.
+
+VALIDACIÓN REALIZADA
+- Validación sintáctica de los tres archivos JavaScript modificados/nuevos con Node.
+- Prueba de formulario en navegador con Supabase simulado: inicio de sesión, fechas, búsqueda, autocompletado, edición de cliente, cálculo alquiler sin incremento por talla/color, depósito, saldo y envío de pedido.
+- No se ejecutó el SQL contra tu Supabase real ni se desplegaron las Edge Functions. El ZIP no contiene el esquema vivo completo. Verifica los pasos anteriores en una base de prueba antes de atender clientes reales.
+
+ACTUALIZACIÓN: Si ya ejecutaste el SQL inicial y la corrección de nombre, no vuelvas a ejecutarlos. Si solo falta la corrección de nombre, ejecuta supabase/07_CORRECCION_NOMBRE_ASESOR.sql. Si ya actualizaste cupissa-emails con la versión de asesores, no es necesario volver a desplegarla.

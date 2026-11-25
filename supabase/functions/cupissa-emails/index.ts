@@ -305,6 +305,28 @@ Deno.serve(async (req) => {
       const clienteId = String(body.cliente_web_id || '').trim();
       result = await syncCustomerAuth(clienteId);
       if (!result.ok) return Response.json(result, { status:422, headers:cors });
+    } else if (body.action === 'advisor_order_confirmation') {
+      // Acepta únicamente el pedido creado por esta sesión en el módulo de asesores.
+      const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+      if (!token) return Response.json({error:'Sesión requerida'}, {status:401,headers:cors});
+      const {data:authData,error:authError}=await db.auth.getUser(token);
+      if(authError || !authData.user) return Response.json({error:'Sesión inválida'}, {status:401,headers:cors});
+      const user=authData.user;
+      const admin=await authorizeAdmin(req);
+      if(!admin.ok){
+        const {data:advisor,error:advisorError}=await db.from('asesores').select('asesor_uid').eq('asesor_uid',user.id).eq('activo_asesor',true).maybeSingle();
+        if(advisorError || !advisor) return Response.json({error:'No autorizado'}, {status:403,headers:cors});
+      }
+      const orderId=String(body.order_id || '').trim();
+      if(!orderId || orderId.length>128) return Response.json({error:'Pedido inválido'}, {status:400,headers:cors});
+      const {data:order,error:orderError}=await db.from('pedidos_web').select('*').eq('id',orderId).eq('asesor_creado_por',user.id).maybeSingle();
+      if(orderError) throw orderError;
+      if(!order) return Response.json({error:'Pedido no autorizado'}, {status:403,headers:cors});
+      let authSyncOk=true;
+      try { const sync=await syncCustomerAuth(String(order.cliente_id)); authSyncOk=sync.ok===true; } catch(e) { authSyncOk=false; console.error('[cupissa-emails] Error sincronizando cliente de asesor:',e); }
+      result=await sendOrderConfirmation({source:'pedidos_web',record:order});
+      if(result?.skipped || result?.ok===false) return Response.json({ok:false,error:'No se confirmó el correo',result}, {status:422,headers:cors});
+      return Response.json({ok:true,result,auth_sync_ok:authSyncOk}, {headers:cors});
     } else if (body.action === 'admin_order_confirmation') {
       const admin = await authorizeAdmin(req);
       if (!admin.ok) return Response.json({ error: admin.reason, code: admin.code }, { status: 403, headers: cors });

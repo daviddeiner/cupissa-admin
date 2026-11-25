@@ -10,6 +10,7 @@
   let creditClients = [];
   let filteredWebClients = [];
   let webOrders = [];
+  let asesores = [];
   let filteredWebOrders = [];
   let maxOrdersPerDay = 20;
   // Los perfiles web de CUPISSA se guardan específicamente en public.clientes_web.
@@ -86,6 +87,7 @@
     try {
       const data = await window.cupissaAdminFetchAll('pedidos_web', {order:'created_at', ascending:false});
       webOrders = (data || []).map(order => { const orderKeys = [order.cliente_web_id, order.cliente_id].filter(v => v != null).map(String); const linked = webClients.find(c => [c.id, c.cliente_id].filter(v => v != null).some(value => orderKeys.includes(String(value)))); return {...order, _client:linked || null}; });
+      await loadAsesores();
       ensureOrderFilterDefaults();
       filterWebOrders();
     } catch (error) {
@@ -123,7 +125,7 @@
       const statusOptions = states.map(s => `<option value="${s}" ${String(o.estado||'AGENDADO')===s?'selected':''}>${s}</option>`).join('');
       const type = o.tipo_pedido || o.tipo_servicio || (items.some(p => p.modalidad === 'ALQUILER') ? 'ALQUILER' : 'VENTA');
       return `<tr class="hover:bg-slate-50">
-        <td class="admin-web-table-cell font-black text-pink-700">${esc(o.numero_pedido || o.codigo || 'CUP')}</td>
+        <td class="admin-web-table-cell font-black text-pink-700">${esc(o.numero_pedido || o.codigo || 'CUP')}${o.asesor_uid?`<small class="block text-slate-500">${esc(asesores.find(x=>String(x.asesor_uid)===String(o.asesor_uid))?.nombre_asesor||'Asesor')}</small>`:''}</td>
         <td class="admin-web-table-cell">${items.map(p=>esc(p.nombre||p.producto||'Producto')).join('<br>') || '—'}</td>
         <td class="admin-web-table-cell">${esc(type)}</td><td class="admin-web-table-cell">${esc(o.fecha_entrega)}</td>
         <td class="admin-web-table-cell font-bold">${esc(clientName(o._client) !== 'Cliente sin nombre' ? clientName(o._client) : (o.cliente_nombre || 'Cliente sin nombre'))}</td><td class="admin-web-table-cell">${esc(o.contacto || o.telefono || o._client?.telefono)}</td>
@@ -171,7 +173,10 @@
   function renderOrdersDashboard() {
     const month = $('web-order-month')?.value || bogotaDateKey().slice(0, 7);
     const today = bogotaDateKey();
-    const monthOrders = webOrders.filter(order => deliveryDateKey(order).slice(0, 7) === month);
+    const aid=$('web-order-advisor')?.value||'';
+    const monthOrders = webOrders.filter(order => deliveryDateKey(order).slice(0, 7) === month && (!aid || String(order.asesor_uid)===aid));
+    const advisorSummary=$('advisor-commission');
+    if(advisorSummary){const selected=asesores.find(x=>x.asesor_uid===aid);const base=monthOrders.filter(o=>normalizeOrderStatus(o.estado)!=='CANCELADO').reduce((sum,o)=>sum+Math.max(0,Number(o.total||0)-((o.tipo_pedido||o.tipo_servicio)==='ALQUILER'? Number(o.asesor_deposito??(Array.isArray(o.productos)?o.productos.reduce((n,p)=>n+Number(p.deposito_unitario||0)*Number(p.cantidad||1),0):0)):0)),0);advisorSummary.textContent=selected?`${selected.nombre_asesor} · Base: ${cop(base)} · Comisión 20%: ${cop(base*.2)}`:'';}
     const nonCancelledMonthOrders = monthOrders.filter(order => normalizeOrderStatus(order.estado) !== 'CANCELADO');
     const pendingChargeMonthOrders = nonCancelledMonthOrders.filter(order => normalizeOrderStatus(order.estado) !== 'ENTREGADO');
     const count = (id, value) => { const node = $(id); if (node) node.textContent = String(value); };
@@ -179,8 +184,8 @@
     count('orders-kpi-month-count', monthOrders.length);
     // Todos los indicadores de periodo se calculan exclusivamente con fecha_entrega.
     const completedTodayStatuses = new Set(['EN CAMINO', 'EN RUTA', 'ENTREGADO', 'CANCELADO']);
-    count('orders-kpi-today', webOrders.filter(order => deliveryDateKey(order) === today && !completedTodayStatuses.has(normalizeOrderStatus(order.estado))).length);
-    count('orders-kpi-transit', webOrders.filter(order => normalizeOrderStatus(order.estado) === 'EN CAMINO').length);
+    count('orders-kpi-today', webOrders.filter(order => (!aid || String(order.asesor_uid)===aid) && deliveryDateKey(order) === today && !completedTodayStatuses.has(normalizeOrderStatus(order.estado))).length);
+    count('orders-kpi-transit', webOrders.filter(order => (!aid || String(order.asesor_uid)===aid) && normalizeOrderStatus(order.estado) === 'EN CAMINO').length);
     count('orders-kpi-delivered', monthOrders.filter(order => normalizeOrderStatus(order.estado) === 'ENTREGADO').length);
     // Las ventas suman solo el total de productos; el domicilio no se incluye.
     count('orders-kpi-sales', money(nonCancelledMonthOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)));
@@ -196,6 +201,7 @@
     webOrderVisible = ADMIN_WEB_CHUNK;
     filteredWebOrders = webOrders.filter(order => {
       const date = deliveryDateKey(order);
+      const aid=$('web-order-advisor')?.value||''; if(aid && String(order.asesor_uid)!==aid)return false;
       if (month && date.slice(0, 7) !== month) return false;
       if (day && date !== day) return false;
       if (!selectedStates.has(normalizeOrderStatus(order.estado || 'AGENDADO'))) return false;
@@ -211,10 +217,16 @@
     const month = $('web-order-month'); if (month) month.value = bogotaDateKey().slice(0, 7);
     const day = $('web-order-day'); if (day) day.value = '';
     document.querySelectorAll('#web-order-status-filter input[type=checkbox]').forEach(input => { input.checked = !['ENTREGADO','CANCELADO'].includes(normalizeOrderStatus(input.value)); });
-    const search = $('web-order-search'); if (search) search.value = '';
+    const search = $('web-order-search'); if (search) search.value = ''; const advisor=$('web-order-advisor');if(advisor)advisor.value='';
     filterWebOrders();
   }
   window.clearWebOrderFilters = clearWebOrderFilters;
+  async function loadAsesores(){const sel=$('web-order-advisor');if(!sel)return;const {data,error}=await db.rpc('cupissa_admin_asesores');if(error){$('advisor-commission').textContent='Asesores: ejecuta la nueva migración SQL.';return;}asesores=data||[];const old=sel.value;sel.replaceChildren(new Option('Todos los asesores',''),...asesores.map(x=>new Option(x.nombre_asesor,x.asesor_uid)));sel.value=old;}
+  window.filterAdvisorOrders=()=>{if($('web-order-advisor').value){$('web-order-day').value='';$('web-order-search').value='';document.querySelectorAll('#web-order-status-filter input').forEach(x=>x.checked=normalizeOrderStatus(x.value)!=='CANCELADO');}filterWebOrders();};
+  window.openCreateAdvisor=()=>showAdminWebModal('Crear asesor',`<form id="advisor-create" class="space-y-3" onsubmit="createAdvisor(event)"><label>Nombre completo<input id="advisor-name" class="admin-web-input" required></label><label>Teléfono (Colombia)<input id="advisor-phone" class="admin-web-input" type="tel" required></label><label>Contraseña (mínimo 8 caracteres)<input id="advisor-pass" class="admin-web-input" type="password" minlength="8" required autocomplete="new-password"></label><button class="fuchsia-btn px-4 py-3 rounded-xl" type="submit">Crear asesor</button><button type="button" class="admin-web-input" onclick="migrateAdvisorLogin(this)">Habilitar acceso de asesores existentes</button><p id="advisor-create-msg" role="alert"></p></form>`);
+  window.migrateAdvisorLogin=async btn=>{btn.disabled=true;try{const {data,error}=await db.functions.invoke('cupissa-asesores',{body:{action:'migrar_login'}});if(error)throw error;$('advisor-create-msg').textContent=`Cuentas actualizadas: ${data.migrados||0}. ${(data.errores||[]).join(' | ')}`;}catch(e){$('advisor-create-msg').textContent=e.message;}finally{btn.disabled=false;}};
+  window.createAdvisor=async event=>{event.preventDefault();const btn=event.target.querySelector('button');btn.disabled=true;try{const {data,error}=await db.functions.invoke('cupissa-asesores',{body:{nombre:$('advisor-name').value,telefono:$('advisor-phone').value,password:$('advisor-pass').value}});if(error||!data?.ok){let msg=data?.error||error?.message;try{msg=(await error.context.json()).error||msg}catch(_){}throw Error(msg||'No se creó el asesor');}closeAdminWebModal();await loadAsesores();alert('Asesor creado correctamente.');}catch(e){$('advisor-create-msg').textContent=e.message;}finally{btn.disabled=false;}};
+
   // Selector de clientes con búsqueda real, sin desplegable nativo.
   function populateOrderClientSelect(query = '') {
     const menu = $('web-order-client-results');
@@ -272,7 +284,7 @@
       const label = $('daily-capacity-current');
       if (label) label.textContent = `${maxOrdersPerDay} pedidos por día`;
       const note = $('daily-capacity-note');
-      if (note) note.textContent = 'Cuando se complete este número de pedidos de venta para una fecha, el calendario dejará de ofrecerla.';
+      if (note) note.textContent = 'El portal de asesores comparte este límite para ventas y alquileres registrados por asesores. El administrador no tiene bloqueo.';
     } catch (error) {
       console.error('No fue posible cargar el límite diario:', error);
       const note = $('daily-capacity-note');
@@ -674,6 +686,7 @@
       <div class="flex items-center justify-between gap-2"><h4 class="font-black text-xs">Productos del pedido</h4><button type="button" class="admin-web-button" onclick="addEditableOrderProduct()"><i class="fa-solid fa-plus mr-1"></i> Añadir</button></div>
       <div id="edit-web-order-products" class="space-y-2"></div>
       <div class="flex justify-end gap-2 border-t pt-4"><button type="button" class="admin-web-button" onclick="closeAdminWebModal()">Cancelar</button><button type="submit" id="save-edited-order" class="fuchsia-btn px-5 py-3 rounded-xl text-xs font-black">Guardar cambios</button></div></form>`);
+    $('edit-web-order-form').dataset.advisorOrder=o.asesor_uid?'1':'0';
     (Array.isArray(o.productos)?o.productos:[]).forEach(p=>window.addEditableOrderProduct(p));
   };
 
@@ -681,7 +694,7 @@
     const root=$('edit-web-order-products');if(!root)return;
     const row=document.createElement('div');row.className='admin-web-product-row';row._product={...p};
     const input=(key,label,type='text')=>`<label><span class="admin-web-label">${label}</span><input class="admin-web-input" data-product-edit="${key}" type="${type}" ${type==='number'?'min="0" step="1"':''} value="${esc(p[key]??(key==='cantidad'?1:type==='number'?0:''))}"></label>`;
-    row.innerHTML=`<div class="wide">${input('nombre','Producto')}</div>${input('precio','Precio unitario','number')}${input('cantidad','Cantidad','number')}${input('referencia','Referencia')}${input('talla','Talla')}${input('color','Color')}<button type="button" class="admin-web-delete" title="Quitar" onclick="this.closest('.admin-web-product-row').remove()"><i class="fa-solid fa-trash"></i></button>`;
+    row.innerHTML=`<div class="wide">${input('nombre','Producto')}</div>${input('precio','Precio unitario','number')}${input('cantidad','Cantidad','number')}${input('referencia','Referencia')}${input('talla','Talla')}${input('color','Color')}${$('edit-web-order-form')?.dataset.advisorOrder==='1'?input('deposito_unitario','Depósito incluido por unidad','number'):''}<button type="button" class="admin-web-delete" title="Quitar" onclick="this.closest('.admin-web-product-row').remove()"><i class="fa-solid fa-trash"></i></button>`;
     root.appendChild(row);
   };
 
@@ -698,9 +711,10 @@
         const v=key=>row.querySelector(`[data-product-edit="${key}"]`)?.value.trim()||'';
         const price=Number(v('precio')),qty=Number(v('cantidad'));
         if(!v('nombre')||!Number.isFinite(price)||price<0||!Number.isInteger(qty)||qty<1)throw Error('Revisa el nombre, precio y cantidad del producto.');
-        return {...row._product,nombre:v('nombre'),precio:price,cantidad:qty,referencia:v('referencia'),talla:v('talla'),color:v('color')};
+        return {...row._product,nombre:v('nombre'),precio:price,cantidad:qty,referencia:v('referencia'),talla:v('talla'),color:v('color'),...(o.asesor_uid?{deposito_unitario:Number(v('deposito_unitario')||0)}:{})};
       });
       const update={fecha_entrega:get('fecha_entrega'),cliente_nombre:get('cliente_nombre'),total,anticipo:advance,productos:products,estado:get('estado')};
+      if(o.asesor_uid){const dep=get('tipo')==='ALQUILER'?products.reduce((sum,p)=>sum+Number(p.deposito_unitario||0)*Number(p.cantidad||0),0):0;if(products.some(p=>!Number.isFinite(p.deposito_unitario)||p.deposito_unitario<0||p.deposito_unitario>p.precio)||dep>total)throw Error('Revisa los depósitos incluidos en el total.');update.asesor_deposito=dep;}
       const existing=(key,alt,value)=>{if(Object.prototype.hasOwnProperty.call(o,key))update[key]=value;else if(alt&&Object.prototype.hasOwnProperty.call(o,alt))update[alt]=value;};
       existing('envio','domicilio_envio',shipping);existing('contacto','telefono',get('contacto'));
       ['direccion','barrio','ciudad','ubicacion','nota'].forEach(k=>existing(k,null,get(k)));

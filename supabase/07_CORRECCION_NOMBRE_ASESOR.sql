@@ -1,0 +1,1 @@
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='asesores' AND column_name='nombre') THEN ALTER TABLE public.asesores ALTER COLUMN nombre DROP NOT NULL; END IF; END $$;

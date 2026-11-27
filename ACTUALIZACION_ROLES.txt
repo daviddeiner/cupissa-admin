@@ -1,0 +1,10 @@
+CUPISSA — ACTUALIZACIÓN DE ROLES Y COMISIONES
+1. Haz una copia de seguridad. Esta actualización presupone que ya instalaste el portal y sus migraciones anteriores (06, 07 y 08).
+2. Ejecuta únicamente supabase/09_ROLES_Y_COMISIONES.sql en Supabase SQL Editor. No vuelvas a ejecutar 06, 07 ni 08 después de 09.
+3. Actualiza y despliega la Edge Function existente cupissa-asesores con supabase/functions/cupissa-asesores/index.ts. No cambies secretos ni desactives autenticación. No se necesita modificar cupissa-emails.
+4. Copia los archivos de cada ZIP en la raíz de su repositorio correspondiente, manteniendo su .git original. Publica ambos repositorios.
+5. Admin > Pedidos > Crear asesor: selecciona Asesor o Asesor administrador. También puedes modificar el rol de un asesor existente. Las cuentas existentes conservan rol asesor inicialmente.
+6. Ambos tipos de asesor ingresan al portal con opción Asesor, teléfono y contraseña. El rol administrador permite agendar sin restricciones de fecha/cupo; no concede acceso al panel interno global. Si se cambia el rol, vuelve a iniciar sesión.
+7. En Pedidos del portal, selecciona el mes de entrega y consulta estado, total y comisión. Comisión estimada: 20% de productos, sin envío, depósito ni cancelados. No representa pago confirmado de comisión.
+8. Pruebas: crear una cuenta de cada rol, intentar agendar hoy y en fecha llena, verificar atribución y comisión en admin y portal, cancelar un pedido y actualizar la lista, comprobar que una cuenta no ve los pedidos de otra.
+Validación local: sintaxis JavaScript. No se ejecutó SQL ni se desplegó en Supabase real. Verificar en entorno de prueba antes de producción.

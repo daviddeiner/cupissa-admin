@@ -22,7 +22,8 @@ if(body.action==='migrar_login'){
  }
  return json({ok:errores.length===0,migrados,errores});
 }
+const rol=body.rol??'asesor';if(!['asesor','admin'].includes(rol))return json({error:'Rol inválido'},400);
 const nombre=String(body.nombre||'').trim();let phone=String(body.telefono||'').replace(/\D/g,'');if(phone.length===10)phone='57'+phone;const password=String(body.password||'');if(!nombre||nombre.length>160||!/^57\d{10}$/.test(phone)||password.length<8||password.length>128)return json({error:'Revisa nombre, teléfono y contraseña (8–128 caracteres)'},400);
 const {data:created,error:authError}=await db.auth.admin.createUser({email:alias(phone),password,email_confirm:true,app_metadata:{cupissa_asesor:true}});if(authError||!created.user)return json({error:authError?.message||'No se creó la cuenta'},400);
-const {error:insertError}=await db.from('asesores').insert({asesor_uid:created.user.id,nombre_asesor:nombre,telefono_asesor:'+'+phone,activo_asesor:true});if(insertError){const rollback=await db.auth.admin.deleteUser(created.user.id);return json({error:insertError.message+(rollback.error?' — cuenta Auth pendiente de eliminar manualmente':'')},422);}return json({ok:true});
+const {error:insertError}=await db.from('asesores').insert({asesor_uid:created.user.id,nombre_asesor:nombre,telefono_asesor:'+'+phone,activo_asesor:true,rol_asesor:rol});if(insertError){const rollback=await db.auth.admin.deleteUser(created.user.id);return json({error:insertError.message+(rollback.error?' — cuenta Auth pendiente de eliminar manualmente':'')},422);}return json({ok:true});
 }catch(e){return json({error:e instanceof Error?e.message:'Error inesperado'},500);}});

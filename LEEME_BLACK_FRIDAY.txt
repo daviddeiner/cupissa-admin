@@ -1,0 +1,8 @@
+CUPISSA — BLACK FRIDAY
+1. Ejecutar BLACK_FRIDAY.sql en el SQL Editor de Supabase antes de publicar.
+2. Actualizar la Edge Function swift-endpoint desde cupissa/supabase/functions/swift-endpoint/index.ts (las copias de app y admin incluyen el mismo cambio; usar la versión correspondiente a tu despliegue). Mantener sus secretos existentes.
+3. Descomprimir y publicar cada ZIP en su proyecto correspondiente.
+4. Abrir el admin o Creación CUPISSA; pulsar Black Friday dentro del formulario o B en el listado. Escribir un porcentaje entero 1–99; 0 retira la promoción. Guardar el formulario si se está editando.
+5. En la tienda abrir Black Friday > Ver ofertas. Las ofertas también aparecen en las tarjetas del catálogo normal. Los ocultos no salen en la sección.
+Reglas: descuento sobre precio base de venta o alquiler; incrementos de talla/color/accesorios, depósito y flete no se descuentan. Se conserva el precio original en Supabase. Durante el descuento se bloquea el cálculo mayorista incluso con cantidad mínima; al retirar la promoción, vuelve la configuración previa. Se conserva la recompensa real por referidos de la app.
+Verificación: sintaxis JavaScript y pruebas locales del cálculo de checkout y Edge (venta, alquiler, cantidad mayorista y extras). No se ejecutó SQL ni se desplegaron proyectos, ni se hizo un pago real. Las fichas SEO estáticas consultan el precio vigente al abrirse; si falla la conexión conservan el precio de su última generación.

@@ -701,6 +701,7 @@
                         <span>Crédito</span>
                     </label>
                     <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chk-pago-contraentrega" class="accent-pink-600 w-4 h-4"><span>💵 Pago contra entrega</span></label>
+                    <div class="flex flex-wrap items-center gap-2"><button type="button" id="btn-black-friday" class="rounded-lg bg-slate-900 text-white px-3 py-2 font-bold" onclick="cupissaChooseBlackFriday()">Black Friday</button><input type="hidden" id="prod-black-friday-pct" value="0"><span id="black-friday-status" class="text-xs font-bold">Sin descuento</span></div>
                     <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chk-produccion-express" class="accent-pink-600 w-4 h-4"><span>⚡ Producción express</span></label>
                 </div>
 
@@ -828,21 +829,21 @@
         </div>
     </div>
 
-    <script src="assets/js/00-config.js"></script>
-    <script src="assets/js/admin-dialogs.js?v=20261109-toasts-v2"></script>
-    <script src="assets/js/admin-rentals.js"></script>
-    <script src="assets/js/admin-core.js?v=20261119-sin-saltos-1"></script>
-    <script src="assets/js/admin-web.js?v=20261125-asesores"></script>
-    <script src="assets/js/admin-enhancements.js?v=20261119-pasos-publicacion-1"></script>
-    <script src="assets/js/admin-notifications.js?v=20261115-clientes-nav-v1"></script>
-    <script src="assets/js/admin-navigation.js?v=20261108-back-home-v1"></script>
-    <script src="assets/js/admin-views.js?v=20261110-vistas-1"></script>
-    <script src="assets/js/admin-domicilios.js?v=20261123-recogidas"></script>
-    <script src="assets/js/admin-theme-navigation.js?v=20261115-3"></script>
-    <script src="assets/js/admin-reviews.js?v=20261121"></script>
+    <script src="assets/js/00-config.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-dialogs.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-rentals.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-core.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-web.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-enhancements.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-notifications.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-navigation.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-views.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-domicilios.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-theme-navigation.js?v=20261128-bf1"></script>
+    <script src="assets/js/admin-reviews.js?v=20261128-bf1"></script>
 
 
-    <script src="assets/js/security-console-notice.js?v=20261107-security-1"></script>
+    <script src="assets/js/security-console-notice.js?v=20261128-bf1"></script>
     <script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js',{scope:'./'}).catch(()=>{}),{once:true});</script>
 
 </body>

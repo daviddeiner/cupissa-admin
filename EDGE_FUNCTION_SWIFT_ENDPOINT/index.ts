@@ -903,12 +903,13 @@ async function createWebPayment(db: any, body: any) {
       `${String(item.productId)}::${mode}`
     ) || quantity;
     const minimumWholesale = Number(product.cant_min_mayorista || 0);
-    if (mode !== "ALQUILER" && minimumWholesale > 0 &&
+    if (mode !== "ALQUILER" && !(Number(product.black_friday_pct)>0) && minimumWholesale > 0 &&
         wholesaleQuantity >= minimumWholesale &&
         Number(product.precio_mayorista || 0) > 0) {
       initialUnit = Number(product.precio_mayorista);
     }
 
+    if (Number(product.black_friday_pct)>0) initialUnit = Math.round(initialUnit*(1-Number(product.black_friday_pct)/100));
     if (!rental) initialUnit += optionExtra(
       product.tallas,
       String(item.talla || "")

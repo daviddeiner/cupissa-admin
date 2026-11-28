@@ -1386,6 +1386,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('chk-credito').checked = false;
             document.getElementById('chk-pago-contraentrega').checked = false;
             document.getElementById('chk-produccion-express').checked = false;
+            cupissaSetBlackFriday(0);
 
             document.getElementById('prod-precio-alquiler').value = '0';
             document.getElementById('prod-valor-deposito').value = '0';
@@ -1433,6 +1434,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
             document.getElementById('chk-credito').checked = !!prod.credito;
             document.getElementById('chk-pago-contraentrega').checked = !!prod.pago_contraentrega;
             document.getElementById('chk-produccion-express').checked = !!prod.produccion_express;
+            cupissaSetBlackFriday(prod.black_friday_pct);
 
             document.getElementById('prod-precio-alquiler').value = prod.precio_alquiler || 0;
             document.getElementById('prod-valor-deposito').value = prod.valor_deposito || 0;
@@ -1948,6 +1950,7 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
                     credito: document.getElementById('chk-credito').checked,
                     pago_contraentrega: document.getElementById('chk-pago-contraentrega').checked,
                     produccion_express: document.getElementById('chk-produccion-express').checked,
+                    black_friday_pct: Number(document.getElementById('prod-black-friday-pct').value)||0,
                     precio_alquiler: parseFloat(document.getElementById('prod-precio-alquiler').value) || 0,
                     valor_deposito: parseFloat(document.getElementById('prod-valor-deposito').value) || 0,
                     tallas: tempTallas,
@@ -2083,3 +2086,24 @@ const SUPABASE_URL = window.CUPISSA_SUPABASE_URL || '';
         function formatCOP(val) {
             return '$ ' + new Intl.NumberFormat('es-CO').format(val || 0);
         }
+
+function cupissaSetBlackFriday(value){
+    const pct=Number(value)||0;
+    document.getElementById('prod-black-friday-pct').value=String(pct);
+    document.getElementById('black-friday-status').textContent=pct>0?'Descuento Black Friday: '+pct+'% · Sin mayorista':'Sin descuento';
+    document.getElementById('btn-black-friday').setAttribute('aria-pressed',String(pct>0));
+    for(const id of ['chk-al-por-mayor','prod-precio-mayorista','prod-cant-min-mayorista']){
+        const field=document.getElementById(id);if(field)field.disabled=pct>0;
+    }
+}
+function cupissaAskBlackFriday(current){
+    const result=prompt('Porcentaje de descuento Black Friday (1–99). Escribe 0 para quitar la oferta.',String(current||0));
+    if(result===null)return null;
+    const value=Number(result.trim());
+    if(!result.trim()||!Number.isInteger(value)||value<0||value>99){alert('Ingresa un porcentaje entero entre 0 y 99.');return null;}
+    return value;
+}
+function cupissaChooseBlackFriday(){
+    const value=cupissaAskBlackFriday(document.getElementById('prod-black-friday-pct').value);
+    if(value!==null)cupissaSetBlackFriday(value);
+}

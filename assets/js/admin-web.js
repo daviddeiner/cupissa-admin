@@ -783,7 +783,7 @@
       : product.venta !== false && product.venta !== 'false';
   }
   function orderCatalogPrice(product) {
-    return Math.max(0, Number(($('web-order-type')?.value === 'ALQUILER' ? (Number(product?.precio_alquiler || 0) + Number(product?.valor_deposito || 0)) : product?.precio_detal) || 0));
+    const rental=$('web-order-type')?.value === 'ALQUILER';const base=Number(rental?product?.precio_alquiler:product?.precio_detal)||0;return Math.max(0,Math.round(base*(1-(Number(product?.black_friday_pct)||0)/100))+(rental?Number(product?.valor_deposito||0):0));
   }
   let orderProductRowCounter = 0;
   function addProductRow() {

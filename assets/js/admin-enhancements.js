@@ -272,7 +272,11 @@
         }catch(error){alert(`No se pudo actualizar ${label}: ${error.message}`);}finally{button.disabled=false;}
       });actions.append(button);
     });
-    actions.append(edit, visibility, remove);
+    const bf=document.createElement('button');bf.type='button';bf.className='admin-icon-action';bf.dataset.productFlag='black_friday_pct';
+    const paintBF=()=>{const pct=Number(product.black_friday_pct)||0;bf.textContent='B';bf.title=pct?'Black Friday: '+pct+'%':'Activar Black Friday';bf.setAttribute('aria-label',bf.title);bf.style.background=pct?'#111827':'';bf.style.color=pct?'white':'';const wholesale=priceFields.querySelectorAll('input')[1];if(wholesale)wholesale.disabled=pct>0;};
+    paintBF();
+    bf.onclick=async()=>{const value=cupissaAskBlackFriday(product.black_friday_pct);if(value===null)return;bf.disabled=true;try{const {data,error}=await supabaseClient.from('productos').update({black_friday_pct:value}).eq('id',product.id).select('id,black_friday_pct').single();if(error)throw error;product.black_friday_pct=data.black_friday_pct;paintBF();}catch(e){alert(e.message);}finally{bf.disabled=false;}};
+    actions.append(bf,edit, visibility, remove);
     row.append(image, main, actions);
     return row;
   }
@@ -348,6 +352,11 @@
       const label=field==='pago_contraentrega'?'Pago contra entrega':'Producción express';
       button.title=`${label}: ${active?'ACTIVO':'INACTIVO'}`;
       button.setAttribute('aria-label',button.title);
+    }
+    if(changedFields.includes('black_friday_pct')){
+      const button=row.querySelector('[data-product-flag="black_friday_pct"]');const pct=Number(product.black_friday_pct)||0;
+      if(button){button.title=pct?'Black Friday: '+pct+'%':'Activar Black Friday';button.setAttribute('aria-label',button.title);button.style.background=pct?'#111827':'';button.style.color=pct?'white':'';}
+      const input=row.querySelectorAll('.admin-product-quick-price input')[1];if(input)input.disabled=pct>0;
     }
     if(changedFields.includes('oculto'))row.classList.toggle('is-hidden',isHidden(product));
     if(changedFields.includes('precio_detal')||changedFields.includes('precio_mayorista')){
